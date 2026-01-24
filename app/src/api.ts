@@ -1,0 +1,277 @@
+const API_BASE = (import.meta as any).env?.VITE_API_BASE || "http://127.0.0.1:8000";
+
+const request = async (path: string, init?: RequestInit) => {
+  const res = await fetch(`${API_BASE}${path}`, init);
+  if (!res.ok) {
+    const contentType = res.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      try {
+        const data: any = await res.json();
+        const msg =
+          (typeof data?.detail === "string" && data.detail) ||
+          (typeof data?.message === "string" && data.message) ||
+          (typeof data?.error === "string" && data.error) ||
+          "";
+        const err: any = new Error(msg || `Request failed: ${res.status}`);
+        err.status = res.status;
+        throw err;
+      } catch (e: any) {
+        const err: any = new Error(e?.message || `Request failed: ${res.status}`);
+        err.status = res.status;
+        throw err;
+      }
+    }
+
+    const text = await res.text().catch(() => "");
+    const err: any = new Error(text || `Request failed: ${res.status}`);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+};
+
+export const api = {
+  health: async () => {
+    return request(`/health`);
+  },
+
+  getNetworkInfo: async () => {
+    return request(`/network-info`);
+  },
+
+  restartMdns: async () => {
+    return request(`/restart-mdns`, {
+      method: "POST",
+    });
+  },
+
+  startupStatus: async () => {
+    return request(`/startup-status`);
+  },
+
+  getVoices: async () => {
+    return request(`/voices`);
+  },
+
+  getActiveUser: async () => {
+    return request(`/active-user`);
+  },
+
+  setActiveUser: async (userId: string | null) => {
+    return request(`/active-user`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: userId }),
+    });
+  },
+
+  getAppMode: async () => {
+    return request(`/app-mode`);
+  },
+
+  setAppMode: async (mode: string) => {
+    return request(`/app-mode`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode }),
+    });
+  },
+
+  // Personalities
+  getPersonalities: async (includeHidden = false) => {
+    const qs = includeHidden ? `?include_hidden=true` : ``;
+    return request(`/personalities${qs}`);
+  },
+  createPersonality: async (data: any) => {
+    return request(`/personalities`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+  },
+
+  generatePersonality: async (description: string) => {
+    return request(`/personalities/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ description }),
+    });
+  },
+
+  generatePersonalityWithVoice: async (description: string, voice_id: string) => {
+    return request(`/personalities/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ description, voice_id }),
+    });
+  },
+
+  updatePersonality: async (id: string, data: any) => {
+    return request(`/personalities/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+  },
+
+  deletePersonality: async (id: string) => {
+    return request(`/personalities/${id}`, {
+      method: "DELETE",
+    });
+  },
+
+  // Voices
+  createVoice: async (data: { voice_id: string; voice_name: string; voice_description?: string | null }) => {
+    return request(`/voices`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Users
+  getUsers: async () => {
+    return request(`/users`);
+  },
+  createUser: async (data: any) => {
+    return request(`/users`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+  },
+
+  updateUser: async (id: string, data: any) => {
+    return request(`/users/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Conversations
+  getConversations: async (limit = 50, offset = 0) => {
+    return request(`/conversations?limit=${limit}&offset=${offset}`);
+  },
+
+  getConversationsBySession: async (sessionId: string) => {
+    return request(`/conversations?session_id=${encodeURIComponent(sessionId)}`);
+  },
+
+  getSessions: async (limit = 50, offset = 0, userId?: string | null) => {
+    const qs = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+    if (userId) qs.set("user_id", userId);
+    return request(`/sessions?${qs.toString()}`);
+  },
+
+  getDeviceStatus: async () => {
+    return request(`/device`);
+  },
+
+  updateDevice: async (data: any) => {
+    return request(`/device`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+  },
+
+  getModels: async () => {
+    return request(`/models`);
+  },
+
+  setModels: async (data: { model_repo: string }) => {
+    return request(`/models`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+  },
+
+  firmwarePorts: async () => {
+    return request(`/firmware/ports`);
+  },
+
+  // Settings (app_state)
+  getSetting: async (key: string) => {
+    return request(`/settings/${encodeURIComponent(key)}`);
+  },
+
+  setSetting: async (key: string, value: string | null) => {
+    return request(`/settings/${encodeURIComponent(key)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ value }),
+    });
+  },
+
+  flashFirmware: async (data: { port: string; baud?: number; chip?: string; offset?: string }) => {
+    return request(`/firmware/flash`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * Switch to a new LLM model. Downloads the model first, then hot-swaps it.
+   * Returns an async generator that yields progress updates.
+   */
+  switchModel: async function* (modelRepo: string): AsyncGenerator<{
+    stage: "downloading" | "loading" | "complete" | "error";
+    progress?: number;
+    message?: string;
+    error?: string;
+  }> {
+    const res = await fetch(`${API_BASE}/models/switch`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model_repo: modelRepo }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      yield { stage: "error", error: text || `Request failed: ${res.status}` };
+      return;
+    }
+
+    const reader = res.body?.getReader();
+    if (!reader) {
+      yield { stage: "error", error: "No response body" };
+      return;
+    }
+
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        if (line.trim()) {
+          try {
+            const data = JSON.parse(line);
+            yield data;
+          } catch {
+            // Skip malformed lines
+          }
+        }
+      }
+    }
+
+    // Process any remaining buffer
+    if (buffer.trim()) {
+      try {
+        const data = JSON.parse(buffer);
+        yield data;
+      } catch {
+        // Skip malformed data
+      }
+    }
+  },
+};
