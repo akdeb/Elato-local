@@ -40,6 +40,34 @@ fn parse_pyproject_dependencies(pyproject: &str) -> Vec<String> {
     deps
 }
 
+fn normalize_dependency_name(spec: &str) -> Option<String> {
+    let trimmed = spec.split(';').next().unwrap_or("").trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    let before_at = trimmed.split('@').next().unwrap_or("").trim();
+    if before_at.is_empty() {
+        return None;
+    }
+
+    let mut end = before_at.len();
+    for (idx, ch) in before_at.char_indices() {
+        if matches!(ch, '=' | '<' | '>' | '!' | '~') {
+            end = idx;
+            break;
+        }
+    }
+
+    let name = &before_at[..end];
+    let name = name.split('[').next().unwrap_or("").trim();
+    if name.is_empty() {
+        None
+    } else {
+        Some(name.to_string())
+    }
+}
+
 fn resolve_pyproject_path(app: &AppHandle) -> Result<PathBuf, String> {
     let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("..")
@@ -55,6 +83,25 @@ fn resolve_pyproject_path(app: &AppHandle) -> Result<PathBuf, String> {
 
     let resource_dir = app.path().resource_dir().map_err(|e| e.to_string())?;
     Ok(resource_dir.join("python-backend").join("pyproject.toml"))
+}
+
+pub fn pyproject_dependency_names(app: &AppHandle) -> Result<Vec<String>, String> {
+    let pyproject_path = resolve_pyproject_path(app)?;
+    if !pyproject_path.exists() {
+        return Err(format!("pyproject.toml not found at {}", pyproject_path.display()));
+    }
+
+    let pyproject = std::fs::read_to_string(&pyproject_path)
+        .map_err(|e| format!("Failed to read pyproject.toml: {}", e))?;
+
+    let deps = parse_pyproject_dependencies(&pyproject);
+    let mut out: Vec<String> = deps
+        .into_iter()
+        .filter_map(|dep| normalize_dependency_name(&dep))
+        .collect();
+    out.sort();
+    out.dedup();
+    Ok(out)
 }
 
 pub fn install_python_deps(app: &AppHandle, pip_path: PathBuf) -> Result<String, String> {
@@ -81,12 +128,12 @@ pub fn install_python_deps(app: &AppHandle, pip_path: PathBuf) -> Result<String,
         return Err("No dependencies found in pyproject.toml".to_string());
     }
 
-    // Install mlx-audio with --no-deps if present (to avoid pip resolver pulling/downgrading deps).
+    // Install mlx-audio without deps to avoid resolver conflicts.
     let mut mlx_audio_spec: Option<String> = None;
     let mut rest: Vec<String> = Vec::new();
     for dep in deps {
         if dep.starts_with("mlx-audio") {
-            // If user provided multiple mlx-audio entries, fail fast.
+            // Reject duplicates to avoid ambiguity.
             if mlx_audio_spec.is_some() {
                 return Err("Multiple mlx-audio entries found in pyproject.toml dependencies".to_string());
             }
