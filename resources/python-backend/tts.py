@@ -1,8 +1,6 @@
 import numpy as np
 from typing import Generator, Optional
 
-import torch
-from pocket_tts import TTSModel
 
 from mlx_audio.tts.utils import load_model as load_tts
 
@@ -194,95 +192,3 @@ class Qwen3TTS:
         return self.output_sample_rate
 
 
-class PocketTTS:
-    """Pocket TTS backend with voice cloning support."""
-
-    # Chunk size in samples (120ms at 24kHz = 2880 samples)
-    # This MUST match the Opus frame size (OPUS_FRAME_SAMPLES in utils.py)
-    CHUNK_SAMPLES = 2880
-
-    DEFAULT_VOICE_PROMPT = "hf://kyutai/tts-voices/alba-mackenna/casual.wav"
-
-    def __init__(
-        self,
-        model_id: str = "pocket-tts",
-        ref_audio_path: Optional[str] = None,
-        output_sample_rate: int = 24_000,
-        temperature: float = 0.8,
-        top_k: int = 1000,
-        top_p: float = 0.95,
-        repetition_penalty: float = 1.2,
-        stream: bool = False,
-        streaming_interval: float = 1.5,
-    ):
-        self.model_id = model_id
-        self.ref_audio_path = ref_audio_path
-        self.output_sample_rate = output_sample_rate
-        self.temperature = temperature
-        self.top_k = top_k
-        self.top_p = top_p
-        self.repetition_penalty = repetition_penalty
-        self.stream = stream
-        self.streaming_interval = streaming_interval
-
-        self.model: Optional[TTSModel] = None
-        self.voice_state = None
-
-    def load(self) -> None:
-        self.model = TTSModel.load_model()
-        self.output_sample_rate = int(getattr(self.model, "sample_rate", self.output_sample_rate))
-
-        if self.ref_audio_path:
-            self.voice_state = self.model.get_state_for_audio_prompt(self.ref_audio_path)
-        else:
-            self.voice_state = self.model.get_state_for_audio_prompt(self.DEFAULT_VOICE_PROMPT)
-
-    def prepare_ref_audio(self, ref_audio_path: Optional[str]) -> None:
-        if not self.model:
-            raise RuntimeError("TTS model not loaded")
-
-        if ref_audio_path:
-            self.voice_state = self.model.get_state_for_audio_prompt(ref_audio_path)
-            self.ref_audio_path = ref_audio_path
-        else:
-            self.ref_audio_path = None
-            self.voice_state = self.model.get_state_for_audio_prompt(self.DEFAULT_VOICE_PROMPT)
-
-    def generate(
-        self, text: str, ref_audio_path: Optional[str] = None
-    ) -> Generator[bytes, None, None]:
-        if not self.model:
-            raise RuntimeError("TTS model not loaded")
-
-        if ref_audio_path is not None and ref_audio_path != self.ref_audio_path:
-            self.prepare_ref_audio(ref_audio_path)
-
-        state = self.voice_state
-        if state is None:
-            state = self.model.get_state_for_audio_prompt(self.DEFAULT_VOICE_PROMPT)
-            self.voice_state = state
-
-        # The PocketTTS API returns torch tensors with PCM samples.
-        # We convert to int16 PCM and chunk to avoid WebSocket message size limits.
-        for chunk in self.model.generate_audio_stream(state, text):
-            if isinstance(chunk, torch.Tensor):
-                audio_t = chunk.detach().to("cpu")
-                audio_np = audio_t.numpy()
-            else:
-                audio_np = np.asarray(chunk)
-
-            audio_np = np.asarray(audio_np, dtype=np.float32)
-            audio_np = np.clip(audio_np, -1.0, 1.0)
-            audio_int16 = (audio_np * 32767.0).astype(np.int16)
-
-            for i in range(0, len(audio_int16), self.CHUNK_SAMPLES):
-                audio_chunk = audio_int16[i : i + self.CHUNK_SAMPLES]
-                yield audio_chunk.tobytes()
-
-    def warmup(self) -> None:
-        for _ in self.generate("Hello."):
-            pass
-
-    @property
-    def sample_rate(self) -> int:
-        return self.output_sample_rate

@@ -5,15 +5,11 @@ import base64
 import json
 import logging
 import os
-import re
-import subprocess
 import sys
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
-from glob import glob
 from typing import Dict, List, Optional
-import socket
 
 os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
 os.environ.setdefault("HF_HUB_ENABLE_HF_TRANSFER", "1")
@@ -23,20 +19,26 @@ os.environ.setdefault("HF_HUB_DISABLE_HF_XET", "1")
 from engine.characters import build_llm_messages, build_runtime_context, build_system_prompt
 
 import mlx.core as mx
-import numpy as np
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from starlette.websockets import WebSocketState
-from mlx_lm import generate as mx_generate
 from mlx_lm.utils import load as load_llm
-
-from mlx_audio.stt.models.whisper import Model as Whisper
-from tts import ChatterboxTTS, PocketTTS
 import db_service  # DB ops exposed via HTTP endpoints
 from fastapi.middleware.cors import CORSMiddleware
 import utils
 from utils import STT, LLM, TTS, create_opus_packetizer
+from services import (
+    ConnectionManager,
+    MdnsService,
+    VoicePipeline,
+    firmware_bin_path,
+    get_local_ip,
+    list_serial_ports,
+    resolve_voice_ref_audio_path,
+    run_firmware_flash,
+    sanitize_spoken_text,
+)
 
 # Client type constants
 CLIENT_TYPE_DESKTOP = "desktop"
@@ -45,43 +47,6 @@ CLIENT_TYPE_ESP32 = "esp32"
 # Bump this string when changing prompt/sanitization so logs prove which code is running.
 SERVER_BUILD_MARKER = "sanitize_v1_paraling_v2"
 
-
-def _sanitize_spoken_text(text: str, *, allow_paralinguistic: bool = True) -> str:
-    if not text:
-        return text
-
-    allowed_cues = {
-        "laugh",
-        "chuckle",
-        "sigh",
-        "gasp",
-        "cough",
-        "clear throat",
-        "sniff",
-        "groan",
-        "shush",
-    }
-
-    # Strip common Markdown markers that sometimes leak into speech.
-    text = text.replace("`", "")
-    text = text.replace("**", "")
-    text = text.replace("*", "")
-    text = text.replace("__", "")
-    text = text.replace("_", "")
-
-    if allow_paralinguistic:
-        def _keep_or_drop(m: re.Match) -> str:
-            tag = (m.group(1) or "").strip()
-            tag_norm = " ".join(tag.lower().split())
-            if tag_norm in allowed_cues:
-                return f"[{tag_norm}]"
-            return ""
-
-        text = re.sub(r"\[([^\]]+)\]", _keep_or_drop, text)
-    else:
-        text = re.sub(r"\[[^\]]+\]", "", text)
-    text = re.sub(r"\s{2,}", " ", text).strip()
-    return text
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -92,289 +57,9 @@ logger.info(f"Server build marker: {SERVER_BUILD_MARKER}")
 GAIN_DB = 7.0
 CEILING = 0.89
 
-def _resolve_voice_ref_audio_path(voice_id: Optional[str]) -> Optional[str]:
-    if not voice_id:
-        return None
-    voices_dir = os.environ.get("ELATO_VOICES_DIR")
-    if not voices_dir:
-        return None
-    try:
-        path = Path(voices_dir).joinpath(f"{voice_id}.wav")
-        if path.exists() and path.is_file():
-            return str(path)
-    except Exception:
-        return None
-    return None
-
-
-class VoicePipeline:
-    def __init__(
-        self,
-        silence_threshold=0.03,
-        silence_duration=1.5,
-        input_sample_rate=16_000,
-        output_sample_rate=24_000,
-        streaming_interval=1.5,
-        frame_duration_ms=30,
-        stt_model=STT,
-        llm_model=LLM,
-        tts_ref_audio: str | None = None,
-        tts_backend: str = "chatterbox",
-    ):
-        self.silence_threshold = silence_threshold
-        self.silence_duration = silence_duration
-        self.input_sample_rate = input_sample_rate
-        self.output_sample_rate = output_sample_rate
-        self.streaming_interval = streaming_interval
-        self.frame_duration_ms = frame_duration_ms
-
-        # Hardcoded STT model as requested
-        self.stt_model_id = STT
-        # LLM model is dynamic
-        self.llm_model = llm_model
-        self.tts_ref_audio = tts_ref_audio
-        self.tts_backend = tts_backend
-
-        self.mlx_lock = asyncio.Lock()
-
-    async def init_models(self):
-        logger.info(f"Loading text generation model: {self.llm_model}")
-        self.llm, self.tokenizer = await asyncio.to_thread(
-            lambda: load_llm(self.llm_model)
-        )
-
-        logger.info(f"Loading speech-to-text model: {self.stt_model_id}")
-        self.stt = Whisper.from_pretrained(self.stt_model_id)
-
-        await self._init_tts()
-
-    async def _init_tts(self):
-        backend = (self.tts_backend or "").strip().lower() or "chatterbox"
-        if backend not in ("pocket", "chatterbox"):
-            backend = "chatterbox"
-
-        if backend == "chatterbox":
-            self.tts = ChatterboxTTS(
-                model_id=TTS,
-                output_sample_rate=self.output_sample_rate,
-                stream=True,
-                streaming_interval=self.streaming_interval,
-            )
-        else:
-            self.tts = PocketTTS(
-                model_id=TTS,
-                output_sample_rate=self.output_sample_rate,
-                stream=True,
-                streaming_interval=self.streaming_interval,
-            )
-
-        await asyncio.to_thread(self.tts.load)
-
-    async def set_tts_backend(self, backend: str) -> str:
-        backend = (backend or "").strip().lower()
-        if backend not in ("pocket", "chatterbox"):
-            raise ValueError("tts_backend must be 'pocket' or 'chatterbox'")
-
-        async with self.mlx_lock:
-            self.tts_backend = backend
-            await self._init_tts()
-        return backend
-
-        # # Warm up TTS once at startup
-        # logger.info("Warming up TTS...")
-        # async with self.mlx_lock:
-        #     await asyncio.to_thread(self.tts.warmup)
-        # logger.info("TTS warmup done.")
-
-    async def generate_text_simple(self, prompt: str, max_tokens=100) -> str:
-        """Helper to generate text from the loaded LLM for internal tasks."""
-        if not self.llm or not self.tokenizer:
-            # If LLM is not loaded, we can't generate. 
-            # In a real app we might want to load it on demand or fail gracefully.
-            raise RuntimeError("LLM not initialized")
-            
-        messages = [{"role": "user", "content": prompt}]
-        formatted_prompt = self.tokenizer.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True
-        )
-        
-        async with self.mlx_lock:
-             # Run generation in thread to avoid blocking loop
-             response = await asyncio.to_thread(
-                 lambda: mx_generate(
-                     self.llm, 
-                     self.tokenizer, 
-                     prompt=formatted_prompt, 
-                     max_tokens=max_tokens, 
-                     verbose=False
-                 )
-             )
-        return response.strip()
-
-    async def transcribe(self, audio_bytes: bytes) -> str:
-        audio = (
-            np.frombuffer(audio_bytes, dtype=np.int16).astype(np.float32) / 32768.0
-        )
-        async with self.mlx_lock:
-            result = await asyncio.to_thread(self.stt.generate, mx.array(audio))
-        return result.text.strip()
-
-    async def generate_response(
-        self,
-        text: str,
-        system_prompt: str = None,
-        messages: Optional[List[Dict[str, str]]] = None,
-        max_tokens: int = 512,
-    ) -> str:
-        """
-        Generate full LLM response text.
-        """
-        if messages is None:
-            sys_content = system_prompt or (
-                "You are a helpful voice assistant. You always respond with short "
-                "sentences and never use punctuation like parentheses or colons "
-                "that wouldn't appear in conversational speech."
-            )
-            messages = [
-                {"role": "system", "content": sys_content},
-                {"role": "user", "content": text},
-            ]
-
-        prompt = self.tokenizer.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True
-        )
-
-        async with self.mlx_lock:
-            response = await asyncio.to_thread(
-                lambda: mx_generate(
-                    self.llm,
-                    self.tokenizer,
-                    prompt=prompt,
-                    max_tokens=max_tokens,
-                    verbose=False,
-                )
-            )
-        return response.strip()
-
-    async def synthesize_speech(
-        self,
-        text: str,
-        cancel_event: asyncio.Event = None,
-        ref_audio_path: Optional[str] = None,
-    ):
-        """
-        Generator that yields audio chunks (as int16 PCM bytes) for the given text.
-        Can be cancelled by setting cancel_event.
-        """
-        audio_queue = asyncio.Queue()
-        loop = asyncio.get_running_loop()
-
-        def _tts_stream():
-            # TTS wrapper already returns int16 PCM bytes
-            for audio_bytes in self.tts.generate(text, ref_audio_path=ref_audio_path):
-                if cancel_event and cancel_event.is_set():
-                    break
-                loop.call_soon_threadsafe(audio_queue.put_nowait, audio_bytes)
-            loop.call_soon_threadsafe(audio_queue.put_nowait, None)
-
-        async with self.mlx_lock:
-            tts_task = asyncio.create_task(asyncio.to_thread(_tts_stream))
-            try:
-                while True:
-                    chunk = await audio_queue.get()
-                    if chunk is None:
-                        break
-                    if cancel_event and cancel_event.is_set():
-                        break
-                    yield chunk
-            finally:
-                await tts_task
-
-
-class ConnectionManager:
-    def __init__(self):
-        self.active_connections: list[WebSocket] = []
-
-    async def connect(self, websocket: WebSocket):
-        await websocket.accept()
-        self.active_connections.append(websocket)
-        logger.info(
-            f"Client connected. Total connections: {len(self.active_connections)}"
-        )
-
-    def disconnect(self, websocket: WebSocket):
-        if websocket in self.active_connections:
-            self.active_connections.remove(websocket)
-        logger.info(
-            f"Client disconnected. Total connections: {len(self.active_connections)}"
-        )
-
-
 pipeline: VoicePipeline = None
 manager = ConnectionManager()
-
-# mDNS service advertisement
-mdns_service_info = None
-zeroconf_instance = None
-current_mdns_ip = None
-
-
-def _get_local_ip() -> str:
-    """Get the local IP address of this machine on the network."""
-    try:
-        # Create a socket to determine the local IP
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        ip = s.getsockname()[0]
-        s.close()
-        return ip
-    except Exception:
-        return "127.0.0.1"
-
-
-def _start_mdns_service(port: int):
-    """Start mDNS service advertisement for ESP32 discovery."""
-    global mdns_service_info, zeroconf_instance, current_mdns_ip
-    try:
-        from zeroconf import ServiceInfo, Zeroconf
-        
-        local_ip = _get_local_ip()
-        logger.info(f"Starting mDNS service advertisement on {local_ip}:{port}")
-        
-        # Create service info for _elato._tcp.local
-        mdns_service_info = ServiceInfo(
-            "_elato._tcp.local.",
-            "Elato Voice Server._elato._tcp.local.",
-            addresses=[socket.inet_aton(local_ip)],
-            port=port,
-            properties={"path": "/ws/esp32"},
-            server="elato.local.",
-        )
-        
-        zeroconf_instance = Zeroconf()
-        zeroconf_instance.register_service(mdns_service_info)
-        current_mdns_ip = local_ip
-        logger.info(f"mDNS service registered: _elato._tcp.local on {local_ip}:{port}")
-    except ImportError:
-        logger.warning("zeroconf not installed, mDNS service advertisement disabled")
-    except Exception as e:
-        logger.error(f"Failed to start mDNS service: {e}")
-
-
-def _stop_mdns_service():
-    """Stop mDNS service advertisement."""
-    global mdns_service_info, zeroconf_instance, current_mdns_ip
-    try:
-        if zeroconf_instance and mdns_service_info:
-            zeroconf_instance.unregister_service(mdns_service_info)
-            zeroconf_instance.close()
-            logger.info("mDNS service stopped")
-    except Exception as e:
-        logger.error(f"Failed to stop mDNS service: {e}")
-    finally:
-        mdns_service_info = None
-        zeroconf_instance = None
-        current_mdns_ip = None
+mdns_service = MdnsService()
 
 
 @asynccontextmanager
@@ -384,7 +69,7 @@ async def lifespan(app: FastAPI):
     
     # Start mDNS service advertisement
     server_port = getattr(app.state, "server_port", 8000)
-    _start_mdns_service(server_port)
+    mdns_service.start(server_port)
     
     # Initialize database (already handled by module import, but logging for clarity)
     logger.info("Database service active")
@@ -429,7 +114,7 @@ async def lifespan(app: FastAPI):
     app.state.pipeline_ready = True
     yield
     logger.info("Shutting down...")
-    _stop_mdns_service()
+    mdns_service.stop()
 
 
 app = FastAPI(title="Voice Pipeline WebSocket Server", lifespan=lifespan)
@@ -452,10 +137,10 @@ class SettingUpdate(BaseModel):
 
 @app.get("/network-info")
 async def network_info():
-    real_ip = _get_local_ip()
+    real_ip = get_local_ip()
     return {
         "ip": real_ip,
-        "advertising_ip": current_mdns_ip
+        "advertising_ip": mdns_service.current_ip
     }
 
 @app.post("/restart-mdns")
@@ -463,9 +148,9 @@ async def restart_mdns():
     """Force restart mDNS service (useful after network change)."""
     server_port = getattr(app.state, "server_port", 8000)
     logger.info("Manual mDNS restart requested")
-    _stop_mdns_service()
-    _start_mdns_service(server_port)
-    return {"status": "restarted", "ip": current_mdns_ip}
+    mdns_service.stop()
+    mdns_service.start(server_port)
+    return {"status": "restarted", "ip": mdns_service.current_ip}
 
 @app.get("/health")
 async def health():
@@ -584,65 +269,26 @@ class FirmwareFlashRequest(BaseModel):
     offset: str = "0x10000"
 
 
-def _list_serial_ports() -> List[str]:
-    try:
-        from serial.tools import list_ports  # type: ignore
-
-        ports = [p.device for p in list_ports.comports() if getattr(p, "device", None)]
-        ports = [p for p in ports if isinstance(p, str) and p]
-        return sorted(list(dict.fromkeys(ports)))
-    except Exception:
-        paths = []
-        paths.extend(glob("/dev/tty.*"))
-        paths.extend(glob("/dev/cu.*"))
-        return sorted(list(dict.fromkeys([p for p in paths if isinstance(p, str) and p])))
-
-
-def _firmware_bin_path() -> Path:
-    base = Path(__file__).resolve().parent
-    return base / "firmware" / "firmware.bin"
-
 
 @app.get("/firmware/ports")
 async def firmware_ports():
-    return {"ports": _list_serial_ports()}
+    return {"ports": list_serial_ports()}
 
 
 @app.post("/firmware/flash")
 async def firmware_flash(body: FirmwareFlashRequest):
-    fw_path = _firmware_bin_path()
+    fw_path = firmware_bin_path()
     if not fw_path.exists():
         raise HTTPException(status_code=404, detail=f"firmware.bin not found at {fw_path}")
 
-    cmd = [
-        sys.executable,
-        "-m",
-        "esptool",
-        "--before",
-        "default_reset",
-        "--after",
-        "hard_reset",
-        "--chip",
-        body.chip,
-        "--port",
-        body.port,
-        "--baud",
-        str(body.baud),
-        "write_flash",
-        "-z",
-        body.offset,
-        str(fw_path),
-    ]
-
     def run() -> Dict[str, object]:
-        proc = subprocess.run(cmd, capture_output=True, text=True)
-        out = (proc.stdout or "") + ("\n" if proc.stdout and proc.stderr else "") + (proc.stderr or "")
-        return {
-            "ok": proc.returncode == 0,
-            "exit_code": proc.returncode,
-            "command": " ".join(cmd),
-            "output": out,
-        }
+        return run_firmware_flash(
+            port=body.port,
+            baud=body.baud,
+            chip=body.chip,
+            offset=body.offset,
+            firmware_path=fw_path,
+        )
 
     return await asyncio.to_thread(run)
 
@@ -1277,21 +923,26 @@ async def websocket_unified(websocket: WebSocket, client_type: str = Query(defau
         except Exception:
             user_ctx = None
 
-        tts_backend = (getattr(pipeline, "tts_backend", None) or db_service.db_service.get_setting("tts_backend") or "chatterbox")
+        tts_backend = (
+            getattr(pipeline, "tts_backend", None)
+            or db_service.db_service.get_setting("tts_backend")
+            or "chatterbox"
+        )
         tts_backend = (tts_backend or "").strip().lower() or "chatterbox"
+        if tts_backend != "chatterbox":
+            tts_backend = "chatterbox"
 
         behavior_constraints = (
             "You always respond with short sentences. "
             "Avoid punctuation like parentheses or colons or markdown that would not appear in conversational speech. Do not use Markdown formatting (no *, **, _, __, backticks). "
         )
 
-        if tts_backend != "pocket":
-            behavior_constraints += (
-                "To add expressivity, you should occasionally use ONLY these paralinguistic cues in brackets: "
-                "[laugh], [chuckle], [sigh], [gasp], [cough], [clear throat], [sniff], [groan], [shush]. "
-                "Use only these cues naturally in context to enhance the conversational flow. "
-                "Examples: [chuckle] That is funny. [sigh] That was a long day."
-            )
+        behavior_constraints += (
+            "To add expressivity, you should occasionally use ONLY these paralinguistic cues in brackets: "
+            "[laugh], [chuckle], [sigh], [gasp], [cough], [clear throat], [sniff], [groan], [shush]. "
+            "Use only these cues naturally in context to enhance the conversational flow. "
+            "Examples: [chuckle] That is funny. [sigh] That was a long day."
+        )
 
         sys_prompt = build_system_prompt(
             personality_name=getattr(personality, "name", None),
@@ -1354,12 +1005,12 @@ async def websocket_unified(websocket: WebSocket, client_type: str = Query(defau
         )
         greeting_text = greeting_text.strip() or "Hello!"
 
-        allow_paralinguistic = (getattr(pipeline, "tts_backend", None) or "chatterbox") != "pocket"
-        greeting_text = _sanitize_spoken_text(greeting_text, allow_paralinguistic=allow_paralinguistic)
+        allow_paralinguistic = (getattr(pipeline, "tts_backend", None) or "chatterbox") == "chatterbox"
+        greeting_text = sanitize_spoken_text(greeting_text, allow_paralinguistic=allow_paralinguistic)
         
         logger.info(f"{client_label} Greeting: {greeting_text}")
         
-        ref_audio_path = _resolve_voice_ref_audio_path(getattr(personality, "voice_id", None))
+        ref_audio_path = resolve_voice_ref_audio_path(getattr(personality, "voice_id", None))
         
         if is_esp32:
             # ESP32: Send RESPONSE.CREATED, then Opus audio, then RESPONSE.COMPLETE
@@ -1497,8 +1148,8 @@ async def websocket_unified(websocket: WebSocket, client_type: str = Query(defau
             return
 
         raw_response = full_response
-        allow_paralinguistic = (getattr(pipeline, "tts_backend", None) or "chatterbox") != "pocket"
-        full_response = _sanitize_spoken_text(full_response, allow_paralinguistic=allow_paralinguistic)
+        allow_paralinguistic = (getattr(pipeline, "tts_backend", None) or "chatterbox") == "chatterbox"
+        full_response = sanitize_spoken_text(full_response, allow_paralinguistic=allow_paralinguistic)
         if raw_response != full_response:
             logger.info(
                 f"{client_label} Sanitized LLM response (raw_len={len(raw_response)}, sanitized_len={len(full_response)})"
@@ -1541,7 +1192,7 @@ async def websocket_unified(websocket: WebSocket, client_type: str = Query(defau
             logger.error(f"Failed to log AI conversation: {e}")
 
         # Stream TTS audio
-        ref_audio_path = _resolve_voice_ref_audio_path(getattr(personality, "voice_id", None))
+        ref_audio_path = resolve_voice_ref_audio_path(getattr(personality, "voice_id", None))
         
         if for_esp32:
             # ESP32: Encode to Opus and send binary

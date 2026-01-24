@@ -206,38 +206,6 @@ export const ModelSetupPage = () => {
             </div>
           ) : (
             <>
-              <div className="mb-6 bg-white border border-black rounded-xl p-4 retro-shadow-sm">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2 font-bold uppercase text-xs tracking-wider">
-                    <Brain className="w-4 h-4" />
-                    Selected LLM (Local)
-                  </div>
-                  <button className="retro-btn text-xs py-1.5 px-3" onClick={refreshLocalModels} disabled={savingLlm}>
-                    Refresh
-                  </button>
-                </div>
-
-                <div className="mt-3">
-                  <select
-                    className="retro-input"
-                    value={selectedLlmRepoId}
-                    onChange={(e) => saveSelectedLlm(e.target.value)}
-                    disabled={savingLlm}
-                  >
-                    <option value="">(default)</option>
-                    {localLlms.map((m) => (
-                      <option key={m.repo_id} value={m.repo_id}>
-                        {m.repo_id}{m.size_estimate ? ` (${m.size_estimate})` : ""}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="mt-2 text-[11px] font-mono text-gray-500">
-                    This dropdown is generated from your local HuggingFace cache.
-                    Changes are saved to settings and will take effect on next server restart.
-                  </div>
-                </div>
-              </div>
-
               <div className="space-y-4">
                 {modelStatus?.models.map((model) => (
                   <div
@@ -263,12 +231,6 @@ export const ModelSetupPage = () => {
                     </div>
 
                     <div className="flex items-center gap-3">
-                      {model.size_estimate && (
-                        <span className="text-xs font-mono text-gray-400 bg-gray-50 px-2 py-1 rounded-full border border-gray-100">
-                          {model.size_estimate}
-                        </span>
-                      )}
-
                       {model.downloaded ? (
                         <div className="flex items-center gap-1 text-green-600 bg-green-50 px-3 py-1.5 rounded-full border border-green-200">
                           <CheckCircle2 className="w-4 h-4" />

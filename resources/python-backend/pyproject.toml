@@ -11,8 +11,6 @@ dependencies = [
     "mlx==0.30.1",
     "mlx-lm==0.30.0",
     "mlx-audio[stt,tts]==0.2.9",
-    "pocket-tts",
-    "torch",
     "einops>=0.8.1",
     "transformers==5.0.0rc1",
     "librosa",

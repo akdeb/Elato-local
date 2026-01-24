@@ -116,7 +116,7 @@ pub async fn check_models_status(_app: AppHandle) -> Result<ModelStatus, String>
         },
         ModelInfo {
             id: "tts".to_string(),
-            name: "Chatterbox TTS Turbo (4-bit)".to_string(),
+            name: "Chatterbox TTS Turbo (FP16)".to_string(),
             model_type: "tts".to_string(),
             repo_id: TTS.to_string(),
             downloaded: false,

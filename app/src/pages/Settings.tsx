@@ -17,7 +17,7 @@ export const Settings = () => {
   const [loading, setLoading] = useState(true);
   const [llmRepo, setLlmRepo] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [ttsBackend, setTtsBackend] = useState<'pocket' | 'chatterbox'>('chatterbox');
+  const [ttsBackend, setTtsBackend] = useState<'chatterbox'>('chatterbox');
   const [ports, setPorts] = useState<string[]>([]);
   const [selectedPort, setSelectedPort] = useState<string>('');
   const [flashing, setFlashing] = useState(false);
@@ -87,10 +87,9 @@ export const Settings = () => {
     setLoading(true);
     setError(null);
     try {
-      const [modelData, volSetting, ttsSetting] = await Promise.all([
+      const [modelData, volSetting] = await Promise.all([
         api.getModels(),
         api.getSetting('laptop_volume').catch(() => ({ key: 'laptop_volume', value: '70' })),
-        api.getSetting('tts_backend').catch(() => ({ key: 'tts_backend', value: 'pocket' })),
       ]);
       setModels(modelData);
       setLlmRepo(modelData.llm.repo);
@@ -98,8 +97,7 @@ export const Settings = () => {
       const parsed = raw != null ? Number(raw) : 70;
       setLaptopVolume(Number.isFinite(parsed) ? Math.max(0, Math.min(100, parsed)) : 70);
 
-      const rawTts = String((ttsSetting as any)?.value || 'pocket').toLowerCase();
-      setTtsBackend(rawTts === 'chatterbox' ? 'chatterbox' : 'pocket');
+      setTtsBackend('chatterbox');
     } catch (e) {
       console.error('Failed to load settings:', e);
       setError('Failed to load settings.');
@@ -232,27 +230,14 @@ export const Settings = () => {
             <select
               className="retro-input flex-1 bg-white"
               value={ttsBackend}
-              onChange={(e) => {
-                const next = (e.target.value === 'chatterbox' ? 'chatterbox' : 'pocket') as 'pocket' | 'chatterbox';
-                setTtsBackend(next);
-                api.setSetting('tts_backend', next).then(loadSettings).catch((err) => {
-                  console.error(err);
-                  setError(err?.message || 'Failed to set TTS backend.');
-                });
-              }}
-              disabled={loading || showSwitchModal}
+              disabled
             >
-              <option value="pocket">Pocket</option>
               <option value="chatterbox">Chatterbox</option>
             </select>
           </div>
 
           <p className="text-[10px] mt-2 opacity-60">
-            {ttsBackend === 'pocket' ? (
-              <span className="font-bold">Paralinguistic tags disabled</span>
-            ) : (
-              <span className="font-bold">Paralinguistic tags enabled</span>
-            )}
+            <span className="font-bold">Paralinguistic tags enabled</span>
           </p>
         </div>
 
