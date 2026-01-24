@@ -119,7 +119,7 @@ class VoicePipeline:
         stt_model=STT,
         llm_model=LLM,
         tts_ref_audio: str | None = None,
-        tts_backend: str = "pocket",
+        tts_backend: str = "chatterbox",
     ):
         self.silence_threshold = silence_threshold
         self.silence_duration = silence_duration
@@ -149,9 +149,9 @@ class VoicePipeline:
         await self._init_tts()
 
     async def _init_tts(self):
-        backend = (self.tts_backend or "").strip().lower() or "pocket"
+        backend = (self.tts_backend or "").strip().lower() or "chatterbox"
         if backend not in ("pocket", "chatterbox"):
-            backend = "pocket"
+            backend = "chatterbox"
 
         if backend == "chatterbox":
             self.tts = ChatterboxTTS(
@@ -401,7 +401,7 @@ async def lifespan(app: FastAPI):
     if not hasattr(app.state, "llm_model"):
         app.state.llm_model = db_service.db_service.get_setting("llm_model") or LLM
     if not hasattr(app.state, "tts_backend"):
-        app.state.tts_backend = db_service.db_service.get_setting("tts_backend") or "pocket"
+        app.state.tts_backend = db_service.db_service.get_setting("tts_backend") or "chatterbox"
     # if not hasattr(app.state, "tts_ref_audio"):
     #     app.state.tts_ref_audio = os.path.join(os.path.dirname(__file__), "tts", "santa.wav")
     if not hasattr(app.state, "silence_threshold"):
@@ -662,7 +662,7 @@ async def get_models():
             "loaded": pipeline is not None and pipeline.llm is not None,
         },
         "tts": {
-            "backend": (getattr(pipeline, "tts_backend", None) or db_service.db_service.get_setting("tts_backend") or "pocket"),
+            "backend": (getattr(pipeline, "tts_backend", None) or db_service.db_service.get_setting("tts_backend") or "chatterbox"),
             "backbone_repo": None,
             "codec_repo": None,
             "loaded": pipeline is not None and pipeline.tts is not None,
@@ -1277,8 +1277,8 @@ async def websocket_unified(websocket: WebSocket, client_type: str = Query(defau
         except Exception:
             user_ctx = None
 
-        tts_backend = (getattr(pipeline, "tts_backend", None) or db_service.db_service.get_setting("tts_backend") or "pocket")
-        tts_backend = (tts_backend or "").strip().lower() or "pocket"
+        tts_backend = (getattr(pipeline, "tts_backend", None) or db_service.db_service.get_setting("tts_backend") or "chatterbox")
+        tts_backend = (tts_backend or "").strip().lower() or "chatterbox"
 
         behavior_constraints = (
             "You always respond with short sentences. "
@@ -1354,7 +1354,7 @@ async def websocket_unified(websocket: WebSocket, client_type: str = Query(defau
         )
         greeting_text = greeting_text.strip() or "Hello!"
 
-        allow_paralinguistic = (getattr(pipeline, "tts_backend", None) or "pocket") != "pocket"
+        allow_paralinguistic = (getattr(pipeline, "tts_backend", None) or "chatterbox") != "pocket"
         greeting_text = _sanitize_spoken_text(greeting_text, allow_paralinguistic=allow_paralinguistic)
         
         logger.info(f"{client_label} Greeting: {greeting_text}")
@@ -1497,7 +1497,7 @@ async def websocket_unified(websocket: WebSocket, client_type: str = Query(defau
             return
 
         raw_response = full_response
-        allow_paralinguistic = (getattr(pipeline, "tts_backend", None) or "pocket") != "pocket"
+        allow_paralinguistic = (getattr(pipeline, "tts_backend", None) or "chatterbox") != "pocket"
         full_response = _sanitize_spoken_text(full_response, allow_paralinguistic=allow_paralinguistic)
         if raw_response != full_response:
             logger.info(
