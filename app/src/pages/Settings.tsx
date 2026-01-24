@@ -17,7 +17,7 @@ export const Settings = () => {
   const [loading, setLoading] = useState(true);
   const [llmRepo, setLlmRepo] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [ttsBackend, setTtsBackend] = useState<'pocket' | 'chatterbox'>('pocket');
+  const [ttsBackend, setTtsBackend] = useState<'pocket' | 'chatterbox'>('chatterbox');
   const [ports, setPorts] = useState<string[]>([]);
   const [selectedPort, setSelectedPort] = useState<string>('');
   const [flashing, setFlashing] = useState(false);
