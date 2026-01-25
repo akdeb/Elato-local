@@ -205,7 +205,7 @@ export const api = {
     });
   },
 
-  flashFirmware: async (data: { port: string; baud?: number; chip?: string; offset?: string }) => {
+  flashFirmware: async (data: { port: string; baud?: number; chip?: string }) => {
     return request(`/firmware/flash`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

@@ -1,7 +1,7 @@
 import subprocess
 import sys
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 
 def list_serial_ports() -> List[str]:
@@ -23,6 +23,15 @@ def firmware_bin_path() -> Path:
     return repo_root / "resources" / "firmware" / "firmware.bin"
 
 
+def _resolve_flash_files(firmware_path: Path) -> List[Tuple[str, Path]]:
+    base_dir = firmware_path.parent
+    return [
+        ("0x0000", base_dir / "bootloader.bin"),
+        ("0x8000", base_dir / "partitions.bin"),
+        ("0x10000", base_dir / "firmware.bin"),
+    ]
+
+
 def run_firmware_flash(
     *,
     port: str,
@@ -31,25 +40,27 @@ def run_firmware_flash(
     offset: str,
     firmware_path: Path,
 ) -> Dict[str, object]:
+    flash_files = _resolve_flash_files(firmware_path)
     cmd = [
         sys.executable,
         "-m",
         "esptool",
         "--before",
-        "default_reset",
+        "default-reset",
         "--after",
-        "hard_reset",
+        "hard-reset",
         "--chip",
         chip,
         "--port",
         port,
         "--baud",
         str(baud),
-        "write_flash",
+        "write-flash",
         "-z",
-        offset,
-        str(firmware_path),
     ]
+    for flash_offset, flash_path in flash_files:
+        cmd.append(flash_offset)
+        cmd.append(str(flash_path))
     proc = subprocess.run(cmd, capture_output=True, text=True)
     out = (proc.stdout or "") + ("\n" if proc.stdout and proc.stderr else "") + (proc.stderr or "")
     return {

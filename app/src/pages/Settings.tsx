@@ -17,7 +17,6 @@ export const Settings = () => {
   const [loading, setLoading] = useState(true);
   const [llmRepo, setLlmRepo] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [ttsBackend, setTtsBackend] = useState<'chatterbox'>('chatterbox');
   const [ports, setPorts] = useState<string[]>([]);
   const [selectedPort, setSelectedPort] = useState<string>('');
   const [flashing, setFlashing] = useState(false);
@@ -70,7 +69,7 @@ export const Settings = () => {
     setFlashing(true);
     setFlashLog('Flashing… do not unplug the device.\n');
     try {
-      const res = await api.flashFirmware({ port: selectedPort, chip: 'esp32s3', baud: 460800, offset: '0x10000' });
+      const res = await api.flashFirmware({ port: selectedPort, chip: 'esp32s3', baud: 460800 });
       if (res?.output) setFlashLog(String(res.output));
       else setFlashLog(JSON.stringify(res, null, 2));
       if (res?.ok) {
@@ -97,7 +96,6 @@ export const Settings = () => {
       const parsed = raw != null ? Number(raw) : 70;
       setLaptopVolume(Number.isFinite(parsed) ? Math.max(0, Math.min(100, parsed)) : 70);
 
-      setTtsBackend('chatterbox');
     } catch (e) {
       console.error('Failed to load settings:', e);
       setError('Failed to load settings.');
@@ -213,32 +211,6 @@ export const Settings = () => {
               )}
             </p>
           
-        </div>
-
-        <div className="pt-8 border-t-2 border-black">
-          <div className="flex flex-col">
-            <div className="flex items-center gap-2 mb-2">
-              <Brain className="w-5 h-5" />
-              <h3 className="font-bold uppercase text-lg">Text To Speech (TTS)</h3>
-            </div>
-            <label className="font-bold mb-2 uppercase text-xs opacity-40">
-              Backend
-            </label>
-          </div>
-
-          <div className="flex gap-2 items-center">
-            <select
-              className="retro-input flex-1 bg-white"
-              value={ttsBackend}
-              disabled
-            >
-              <option value="chatterbox">Chatterbox</option>
-            </select>
-          </div>
-
-          <p className="text-[10px] mt-2 opacity-60">
-            <span className="font-bold">Paralinguistic tags enabled</span>
-          </p>
         </div>
 
         <div className="pt-8 border-t-2 border-black">

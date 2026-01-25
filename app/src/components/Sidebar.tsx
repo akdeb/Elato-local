@@ -5,7 +5,7 @@ import { useActiveUser } from '../state/ActiveUserContext';
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { User } from 'lucide-react';
-import logoPng from '../assets/logo.png';
+import { Logo } from './Logo';
 
 const NavItem = ({
   to,
@@ -79,11 +79,8 @@ export const Sidebar = () => {
   return (
     <div className="w-64 shrink-0 bg-transparent p-6 flex flex-col gap-6 h-full overflow-y-auto overscroll-contain">
       <div className="border-2 border-black rounded-[24px] overflow-hidden">
-        <div className="p-4 bg-[#CF79FF] text-white">
-          <div className="flex items-center gap-2">
-            <img src={logoPng} alt="" className="w-12 h-12" />
-            <h1 className="text-2xl tracking-wider brand-font mt-1 text-white">ELATO</h1>
-          </div>
+        <div className="p-4 bg-white text-black flex flex-col items-center">
+          <Logo />
           <p className="text-xs font-mono opacity-90">Epic Local AI Toys</p>
         </div>
         <div className="bg-transparent border-t-2 border-black">

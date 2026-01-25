@@ -71,7 +71,7 @@ function SetupGate() {
     return (
       <div className="min-h-screen bg-[var(--color-retro-bg)] retro-dots flex items-center justify-center">
         <div className="text-center retro-card">
-          <div className="text-2xl font-black mb-2 tracking-wider brand-font">ELATO</div>
+          <Logo />
           <div className="text-gray-500 font-mono">Loading...</div>
         </div>
       </div>
@@ -86,7 +86,8 @@ function SetupGate() {
     return (
       <div className="min-h-screen bg-[var(--color-retro-bg)] retro-dots flex items-center justify-center">
         <div className="text-center retro-card">
-          <div className="text-2xl font-black mb-2 tracking-wider brand-font">ELATO</div>
+          
+          <Logo />
           <div className="text-gray-500 font-mono">{startupMsg}</div>
         </div>
       </div>
@@ -97,6 +98,7 @@ function SetupGate() {
 }
 
 import { ActiveUserProvider } from "./state/ActiveUserContext";
+import { Logo } from "./components/Logo";
 
 function App() {
   return (

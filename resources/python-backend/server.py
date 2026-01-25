@@ -5,6 +5,7 @@ import base64
 import json
 import logging
 import os
+import socket
 import sys
 import uuid
 from contextlib import asynccontextmanager
@@ -66,10 +67,27 @@ mdns_service = MdnsService()
 async def lifespan(app: FastAPI):
     global pipeline
     app.state.pipeline_ready = False
+    udp_task = None
     
     # Start mDNS service advertisement
     server_port = getattr(app.state, "server_port", 8000)
     mdns_service.start(server_port)
+
+    async def broadcast_server():
+        ip = get_local_ip()
+        if ip.startswith("127."):
+            return
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        msg = f"ELATO_SERVER {ip} {server_port}".encode("utf-8")
+        while True:
+            try:
+                sock.sendto(msg, ("255.255.255.255", 1900))
+            except Exception:
+                pass
+            await asyncio.sleep(2)
+
+    udp_task = asyncio.create_task(broadcast_server())
     
     # Initialize database (already handled by module import, but logging for clarity)
     logger.info("Database service active")
@@ -115,6 +133,8 @@ async def lifespan(app: FastAPI):
     yield
     logger.info("Shutting down...")
     mdns_service.stop()
+    if udp_task:
+        udp_task.cancel()
 
 
 app = FastAPI(title="Voice Pipeline WebSocket Server", lifespan=lifespan)
@@ -140,7 +160,8 @@ async def network_info():
     real_ip = get_local_ip()
     return {
         "ip": real_ip,
-        "advertising_ip": mdns_service.current_ip
+        "advertising_ip": mdns_service.current_ip,
+        "mdns_enabled": mdns_service.enabled
     }
 
 @app.post("/restart-mdns")
