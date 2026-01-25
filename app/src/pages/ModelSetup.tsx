@@ -11,6 +11,7 @@ import {
   AlertCircle,
   Brain,
 } from "lucide-react";
+import { LlmSelector } from "../components/LlmSelector";
 
 interface ModelInfo {
   id: string;
@@ -129,11 +130,15 @@ export const ModelSetupPage = () => {
     }
   };
 
-  const downloadAllModels = async () => {
+  const getRequiredModels = () => (modelStatus?.models || []).filter((m) => m.model_type !== "llm");
+
+  const downloadRequiredModels = async () => {
     try {
       setDownloadingAll(true);
       setError(null);
-      await invoke("download_all_models");
+      for (const model of getRequiredModels()) {
+        await invoke("download_model", { repoId: model.repo_id });
+      }
       await checkModels();
       await refreshLocalModels();
     } catch (e: any) {
@@ -184,22 +189,69 @@ export const ModelSetupPage = () => {
     }
   };
 
-  const pendingModels = modelStatus?.models.filter((m) => !m.downloaded) || [];
-  const allDownloaded = modelStatus?.all_downloaded ?? false;
-
   const localLlms = localModels
     .filter((m) => m.model_type === "llm")
     .sort((a, b) => a.repo_id.localeCompare(b.repo_id));
+  const requiredModels = getRequiredModels();
+  const pendingModels = requiredModels.filter((m) => !m.downloaded);
+  const llmDownloaded = !!selectedLlmRepoId && localLlms.some((m) => m.repo_id === selectedLlmRepoId);
+  const allDownloaded = pendingModels.length === 0 && llmDownloaded;
 
   return (
-    <div className="min-h-screen bg-[var(--color-retro-bg)] retro-dots flex items-center justify-center p-8">
+    <div className="min-h-screen bg-(--color-retro-bg) flex items-center justify-center p-8">
       <div className="max-w-2xl w-full">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-black mb-2 tracking-wider brand-font">AI MODELS</h1>
-          <p className="text-gray-600 font-mono">Download the required models to get started</p>
+        <div className="text-center mb-6">
+          <h1 className="text-4xl font-black tracking-wider brand-font">MODEL SETUP</h1>
         </div>
 
-        <div className="retro-card">
+        <div className="retro-card space-y-4">
+          <div className="font-bold uppercase text-sm flex items-center gap-2 border-b-2 border-black pb-2">
+            <Brain className="w-4 h-4" />
+            Language Model
+          </div>
+
+          <LlmSelector
+            value={selectedLlmRepoId}
+            onChange={(repoId) => setSelectedLlmRepoId(repoId)}
+            label="LLM"
+          />
+
+          <div className="flex items-center gap-3">
+            <button
+              className="retro-btn text-xs py-1.5 px-4"
+              onClick={() => saveSelectedLlm(selectedLlmRepoId)}
+              disabled={!selectedLlmRepoId || savingLlm}
+            >
+              {savingLlm ? "Saving..." : "Save"}
+            </button>
+            {llmDownloaded ? (
+              <span className="text-xs font-bold uppercase tracking-wide text-green-700 bg-green-50 px-3 py-1.5 rounded-full border border-green-200">
+                Downloaded
+              </span>
+            ) : (
+              <button
+                className="retro-btn text-xs py-1.5 px-4"
+                onClick={() => downloadModel(selectedLlmRepoId)}
+                disabled={
+                  !selectedLlmRepoId ||
+                  savingLlm ||
+                  downloadingAll ||
+                  downloading === selectedLlmRepoId
+                }
+              >
+                {downloading === selectedLlmRepoId ? "Downloading..." : "Download"}
+              </button>
+            )}
+          </div>
+
+          {selectedLlmRepoId && (
+            <div className="text-[10px] font-mono text-gray-400 truncate">
+              {selectedLlmRepoId}
+            </div>
+          )}
+        </div>
+
+        <div className="retro-card mt-6">
           {loading ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
@@ -207,10 +259,10 @@ export const ModelSetupPage = () => {
           ) : (
             <>
               <div className="space-y-4">
-                {modelStatus?.models.map((model) => (
+                {requiredModels.map((model) => (
                   <div
                     key={model.id}
-                    className="bg-white border border-black rounded-xl p-4 flex items-center gap-4 retro-shadow-sm transition-all hover:translate-y-[-2px]"
+                    className="bg-white border border-black rounded-xl p-4 flex items-center gap-4 retro-shadow-sm"
                   >
                     <div
                       className={`p-2 rounded-lg border border-black ${
@@ -238,8 +290,8 @@ export const ModelSetupPage = () => {
                         </div>
                       ) : downloading === model.repo_id || downloadingAll ? (
                         <div className="flex items-center gap-2 text-blue-600 bg-blue-50 px-3 py-1.5 rounded-full border border-blue-200">
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                            <span className="text-xs font-bold uppercase tracking-wide">Downloading</span>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span className="text-xs font-bold uppercase tracking-wide">Downloading</span>
                         </div>
                       ) : (
                         <button
@@ -257,53 +309,36 @@ export const ModelSetupPage = () => {
 
               {progress && (
                 <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-xl flex items-center gap-3">
-                    <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                  <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
                   <div className="text-sm text-blue-700 font-mono">{progress}</div>
                 </div>
               )}
 
               {error && (
                 <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2">
-                  <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+                  <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
                   <div className="text-sm text-red-700 font-mono break-all">{error}</div>
                 </div>
               )}
 
-              <div className="mt-8 flex gap-3 border-t-2 border-black pt-6">
-                {!allDownloaded && pendingModels.length > 0 && (
+              {!allDownloaded && pendingModels.length > 0 && (
+                <div className="mt-6">
                   <button
-                    className="retro-btn flex-1 flex items-center justify-center gap-2"
-                    onClick={downloadAllModels}
+                    className="retro-btn w-full flex items-center justify-center gap-2"
+                    onClick={downloadRequiredModels}
                     disabled={!!downloading || downloadingAll}
                   >
                     {downloadingAll ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin" />
-                        Downloading All...
+                        Downloading...
                       </>
                     ) : (
                       <>
                         <Download className="w-4 h-4" />
-                        Download All ({pendingModels.length})
+                        Download Required ({pendingModels.length})
                       </>
                     )}
-                  </button>
-                )}
-
-                {allDownloaded && (
-                  <button className="retro-btn retro-btn-green flex-1 flex items-center justify-center gap-2" onClick={handleContinue}>
-                    Continue to App →
-                  </button>
-                )}
-              </div>
-
-              {!allDownloaded && (
-                <div className="mt-4 text-center">
-                  <button
-                    className="text-xs font-mono text-gray-500 underline hover:text-gray-800 transition-colors"
-                    onClick={handleContinue}
-                  >
-                    Skip for now (download later)
                   </button>
                 </div>
               )}
@@ -311,9 +346,16 @@ export const ModelSetupPage = () => {
           )}
         </div>
 
-        <div className="mt-6 text-center text-xs text-gray-500 font-mono opacity-60">
-          Models are downloaded from HuggingFace Hub and cached locally in ~/.cache/huggingface/hub
-        </div>
+        {allDownloaded && (
+          <div className="mt-6">
+            <button
+              className="retro-btn retro-btn-green w-full flex items-center justify-center gap-2"
+              onClick={handleContinue}
+            >
+              Continue to App →
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

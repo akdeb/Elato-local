@@ -1,4 +1,83 @@
 [
-    "mlx-community/Ministral-3-3B-Instruct-2512-4bit",
-    "mlx-community/gpt-oss-20b-MXFP4-Q4"
+  {
+    "id": "ministral-3-3b-4bit",
+    "name": "Ministral 3 3B Instruct",
+    "repo_id": "mlx-community/Ministral-3-3B-Instruct-2512-4bit",
+    "params": "3B",
+    "quantization": "4bit",
+    "specialty": "general",
+    "thinking": false
+  },
+  {
+    "id": "gpt-oss-20b-mxfp4",
+    "name": "GPT-OSS 20B MXFP4",
+    "repo_id": "mlx-community/gpt-oss-20b-MXFP4-Q4",
+    "params": "20B",
+    "quantization": "MXFP4",
+    "specialty": "general",
+    "thinking": false
+  },
+  {
+    "id": "qwen3-0.6b-4bit",
+    "name": "Qwen3 0.6B",
+    "repo_id": "mlx-community/Qwen3-0.6B-4bit",
+    "params": "0.6B",
+    "quantization": "4bit",
+    "specialty": "general",
+    "thinking": true
+  },
+  {
+    "id": "qwen3-1.7b-4bit",
+    "name": "Qwen3 1.7B",
+    "repo_id": "mlx-community/Qwen3-1.7B-4bit",
+    "params": "1.7B",
+    "quantization": "4bit",
+    "specialty": "general",
+    "thinking": true
+  },
+  {
+    "id": "llama-3.2-1b-4bit",
+    "name": "Llama 3.2 1B Instruct",
+    "repo_id": "mlx-community/Llama-3.2-1B-Instruct-4bit",
+    "params": "1B",
+    "quantization": "4bit",
+    "specialty": "general",
+    "thinking": false
+  },
+  {
+    "id": "llama-3.2-3b-4bit",
+    "name": "Llama 3.2 3B Instruct",
+    "repo_id": "mlx-community/Llama-3.2-3B-Instruct-4bit",
+    "params": "3B",
+    "quantization": "4bit",
+    "specialty": "general",
+    "thinking": false
+  },
+  {
+    "id": "qwen3-4b-4bit",
+    "name": "Qwen3 4B",
+    "repo_id": "mlx-community/Qwen3-4B-4bit",
+    "params": "4B",
+    "quantization": "4bit",
+    "specialty": "general",
+    "thinking": true
+  },
+  {
+    "id": "medgemma-1.5-4b-4bit",
+    "name": "MedGemma 1.5 4B IT",
+    "repo_id": "mlx-community/medgemma-1.5-4b-it-4bit",
+    "params": "4B",
+    "quantization": "4bit",
+    "specialty": "medical",
+    "thinking": false
+  },
+  {
+    "id": "medgemma-1.5-4b-bf16",
+    "name": "MedGemma 1.5 4B BF16",
+    "repo_id": "mlx-community/medgemma-1.5-4b-it-bf16",
+    "params": "4B",
+    "quantization": "bf16",
+    "specialty": "medical",
+    "thinking": false
+  }
 ]

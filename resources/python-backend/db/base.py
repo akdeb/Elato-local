@@ -4,7 +4,6 @@ ALLOWED_TABLES = {
     "app_state",
     "conversations",
     "personalities",
-    "schema_migrations",
     "sessions",
     "users",
     "voices",

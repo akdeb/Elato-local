@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Users, Cpu, LockKeyhole, MessagesSquare, Volume2, LayoutGrid } from 'lucide-react';
+import { Users, Cpu, LockKeyhole, MessagesSquare, Volume2, Sparkles } from 'lucide-react';
 import clsx from 'clsx';
 import { useActiveUser } from '../state/ActiveUserContext';
 import { useEffect, useState } from 'react';
@@ -85,7 +85,7 @@ export const Sidebar = () => {
         </div>
         <div className="bg-transparent border-t-2 border-black">
           <nav className="flex flex-col">
-            <NavItem to="/" icon={LayoutGrid} label="Personalities" />
+            <NavItem to="/" icon={Sparkles} label="Playground" />
             <NavItem to="/voices" icon={Volume2} label="Voices" />
             <NavItem to="/conversations" icon={MessagesSquare} label="Sessions" trailingIcon={LockKeyhole} trailingTooltip="Private & secure" />
             <NavItem to="/users" icon={Users} label="Members" />

@@ -4,8 +4,8 @@ from typing import Optional
 from .base import BaseDB
 from .conversations import ConversationsMixin
 from .devices import DeviceMixin
-from .migrations import apply_migrations
-from .paths import migrations_dir, resolve_db_path
+from .paths import resolve_db_path
+from .schema import init_schema
 from .personalities import PersonalitiesMixin
 from .seeds import SeedMixin
 from .sessions import SessionsMixin
@@ -35,7 +35,8 @@ class DBService(
             Path(self.db_path).expanduser().parent.mkdir(parents=True, exist_ok=True)
 
         conn = self._get_conn()
-        apply_migrations(conn, migrations_dir())
+        init_schema(conn)
+        conn.commit()
         conn.close()
 
         self.seeded_ok = False

@@ -77,7 +77,54 @@ export const api = {
     });
   },
 
-  // Personalities
+  // Experiences (personalities, games, stories)
+  getExperiences: async (includeHidden = false, type?: 'personality' | 'game' | 'story') => {
+    const params = new URLSearchParams();
+    if (includeHidden) params.set('include_hidden', 'true');
+    if (type) params.set('type', type);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    return request(`/experiences${qs}`);
+  },
+
+  createExperience: async (data: {
+    name: string;
+    prompt: string;
+    short_description?: string;
+    tags?: string[];
+    voice_id: string;
+    type: 'personality' | 'game' | 'story';
+    img_src?: string;
+  }) => {
+    return request(`/experiences`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+  },
+
+  generateExperience: async (description: string, type: 'personality' | 'game' | 'story' = 'personality', voice_id?: string) => {
+    return request(`/experiences/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ description, type, voice_id }),
+    });
+  },
+
+  updateExperience: async (id: string, data: any) => {
+    return request(`/experiences/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+  },
+
+  deleteExperience: async (id: string) => {
+    return request(`/experiences/${id}`, {
+      method: "DELETE",
+    });
+  },
+
+  // Personalities (backward compatible)
   getPersonalities: async (includeHidden = false) => {
     const qs = includeHidden ? `?include_hidden=true` : ``;
     return request(`/personalities${qs}`);

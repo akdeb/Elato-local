@@ -114,7 +114,7 @@ export const SetupPage = () => {
   );
 
   return (
-    <div className="min-h-screen bg-[var(--color-retro-bg)] retro-dots flex items-center justify-center p-8">
+    <div className="min-h-screen bg-[var(--color-retro-bg)] flex items-center justify-center p-8">
       <div className="max-w-lg w-full">
         <div className="text-center mb-8">
           <h1 className="text-4xl font-black mb-2 tracking-wider brand-font">EPIC LOCAL AI TOYS</h1>

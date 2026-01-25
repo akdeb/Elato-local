@@ -1,9 +1,12 @@
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Literal, Optional
+
+ExperienceType = Literal["personality", "game", "story"]
 
 
 @dataclass
-class Personality:
+class Experience:
+    """Base model for personalities, games, and stories."""
     id: str
     name: str
     prompt: str
@@ -12,8 +15,13 @@ class Personality:
     is_visible: bool
     is_global: bool
     voice_id: str
+    type: ExperienceType = "personality"
     img_src: Optional[str] = None
     created_at: Optional[float] = None
+
+
+# Alias for backward compatibility
+Personality = Experience
 
 
 @dataclass

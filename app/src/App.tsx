@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Layout } from "./components/Layout";
-import { Personalities } from "./pages/Personalities";
+import { Playground } from "./pages/Playground";
 import { UsersPage } from "./pages/Users";
 import { Conversations } from "./pages/Conversations";
 import { Settings } from "./pages/Settings";
@@ -69,7 +69,7 @@ function SetupGate() {
 
   if (checking) {
     return (
-      <div className="min-h-screen bg-[var(--color-retro-bg)] retro-dots flex items-center justify-center">
+      <div className="min-h-screen bg-[var(--color-retro-bg)] flex items-center justify-center">
         <div className="text-center retro-card">
           <Logo />
           <div className="text-gray-500 font-mono">Loading...</div>
@@ -84,7 +84,7 @@ function SetupGate() {
 
   if (!backendReady) {
     return (
-      <div className="min-h-screen bg-[var(--color-retro-bg)] retro-dots flex items-center justify-center">
+      <div className="min-h-screen bg-[var(--color-retro-bg)] flex items-center justify-center">
         <div className="text-center retro-card">
           
           <Logo />
@@ -109,7 +109,8 @@ function App() {
           <Route path="/model-setup" element={<ModelSetupPage />} />
 
           <Route path="/" element={<SetupGate />}>
-            <Route index element={<Personalities />} />
+            <Route index element={<Playground />} />
+            <Route path="playground" element={<Playground />} />
             <Route path="voices" element={<VoicesPage />} />
             <Route path="users" element={<UsersPage />} />
             <Route path="conversations" element={<Conversations />} />

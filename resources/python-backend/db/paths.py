@@ -27,10 +27,6 @@ def resolve_db_path(db_path: Optional[str] = None) -> str:
     return resolved
 
 
-def migrations_dir() -> Path:
-    return Path(__file__).resolve().parents[1] / "resources" / "python-backend" / "migrations"
-
-
 def assets_dir() -> Path:
     if os.environ.get("ELATO_ASSETS_DIR"):
         return Path(os.environ["ELATO_ASSETS_DIR"]).expanduser().resolve()

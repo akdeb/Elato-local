@@ -17,6 +17,7 @@ const LayoutInner = () => {
   const [deviceConnected, setDeviceConnected] = useState<boolean>(false);
   const [deviceSessionId, setDeviceSessionId] = useState<string | null>(null);
   const [downloadedVoiceIds, setDownloadedVoiceIds] = useState<Set<string>>(new Set());
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Network monitoring
   const [initialIp, setInitialIp] = useState<string | null>(null);
@@ -139,7 +140,7 @@ const LayoutInner = () => {
   }, [navigate]);
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-[#f6f0e6] retro-dots">
+    <div className="flex flex-col h-screen overflow-hidden bg-[#f6f0e6]">
       {showNetworkBanner && (
         <div className="bg-[var(--color-retro-blue)] text-white px-4 py-3 flex items-center justify-between shadow-md z-50 shrink-0 border-b-2 border-black">
           <div className="font-mono text-sm flex items-center gap-2">
@@ -148,16 +149,18 @@ const LayoutInner = () => {
               <strong>WiFi Change Detected: Refresh your app so your toy can find you.</strong>
             </span>
           </div>
-          <button 
+          <button   disabled={isRefreshing}
             onClick={async () => {
               try {
+                setIsRefreshing(true);
                 await api.restartMdns();
               } catch (e) {
                 console.error("Failed to restart mDNS:", e);
               }
+              setIsRefreshing(false);
               window.location.reload();
             }}
-            className="flex items-center rounded-[12px] gap-2 bg-white text-black px-3 cursor-pointer py-1.5 border-2 border-black shadow-[2px_2px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none font-bold text-xs uppercase hover:bg-gray-50 transition-all"
+            className="flex items-center rounded-[12px] gap-2 bg-white text-black px-3 cursor-not-allowed py-1.5 border-2 border-black shadow-[2px_2px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none font-bold text-xs uppercase hover:bg-gray-50 transition-all opacity-50"
           >
             Refresh
           </button>

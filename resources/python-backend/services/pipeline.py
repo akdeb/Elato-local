@@ -69,13 +69,35 @@ class VoicePipeline:
             await self._init_tts()
         return backend
 
-    async def generate_text_simple(self, prompt: str, max_tokens=100) -> str:
+    def _apply_chat_template(self, messages, add_generation_prompt: bool, clear_thinking: bool | None):
+        try:
+            if clear_thinking is None:
+                return self.tokenizer.apply_chat_template(
+                    messages, tokenize=False, add_generation_prompt=add_generation_prompt
+                )
+            return self.tokenizer.apply_chat_template(
+                messages,
+                tokenize=False,
+                add_generation_prompt=add_generation_prompt,
+                clear_thinking=clear_thinking,
+            )
+        except TypeError:
+            return self.tokenizer.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=add_generation_prompt
+            )
+
+    async def generate_text_simple(
+        self,
+        prompt: str,
+        max_tokens=100,
+        clear_thinking: bool | None = None,
+    ) -> str:
         if not self.llm or not self.tokenizer:
             raise RuntimeError("LLM not initialized")
 
         messages = [{"role": "user", "content": prompt}]
-        formatted_prompt = self.tokenizer.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True
+        formatted_prompt = self._apply_chat_template(
+            messages, add_generation_prompt=True, clear_thinking=clear_thinking
         )
 
         async with self.mlx_lock:
@@ -104,6 +126,7 @@ class VoicePipeline:
         system_prompt: str = None,
         messages=None,
         max_tokens: int = 512,
+        clear_thinking: bool | None = None,
     ) -> str:
         if messages is None:
             sys_content = system_prompt or (
@@ -116,8 +139,8 @@ class VoicePipeline:
                 {"role": "user", "content": text},
             ]
 
-        prompt = self.tokenizer.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True
+        prompt = self._apply_chat_template(
+            messages, add_generation_prompt=True, clear_thinking=clear_thinking
         )
 
         async with self.mlx_lock:

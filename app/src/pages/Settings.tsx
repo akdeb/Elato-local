@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { RefreshCw, Brain, Radio, MonitorUp, Rss, Zap } from 'lucide-react';
 import { ModelSwitchModal } from '../components/ModelSwitchModal';
+import { LlmSelector } from '../components/LlmSelector';
 
 type ModelConfig = {
   llm: {
@@ -182,21 +183,22 @@ export const Settings = () => {
             <h3 className="font-bold uppercase text-lg">Language Model (LLM)</h3>
           </div>  
             <label className="font-bold mb-2 uppercase text-xs opacity-40">
-              Hugging Face Repository (mlx-community)
+              Hugging Face Repository
             </label>
           </div>
           
-            <div className="flex gap-2">
-              <input 
-                type="text" 
-                value={llmRepo}
-                onChange={(e) => setLlmRepo(e.target.value)}
-                placeholder="e.g. mlx-community/Ministral-3-3B-Instruct-2512-4bit"
-                className="retro-input flex-1 bg-white" 
-              />
+            <div className="flex gap-2 items-start">
+              <div className="flex-1">
+                <LlmSelector
+                  value={llmRepo}
+                  onChange={(repoId) => setLlmRepo(repoId)}
+                  disabled={showSwitchModal || loading}
+                  label=""
+                />
+              </div>
               <button 
                 onClick={handleSaveModel}
-                disabled={showSwitchModal || loading || llmRepo === models?.llm.repo}
+                disabled={showSwitchModal || loading || !llmRepo || llmRepo === models?.llm.repo}
                 className="retro-btn bg-[#9b5cff] text-white disabled:opacity-50 flex items-center gap-2"
               >
                 <Rss className="w-4 h-4" />

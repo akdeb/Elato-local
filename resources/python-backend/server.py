@@ -11,6 +11,7 @@ import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Dict, List, Optional
+import re
 
 os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
 os.environ.setdefault("HF_HUB_ENABLE_HF_TRANSFER", "1")
@@ -61,6 +62,38 @@ CEILING = 0.89
 pipeline: VoicePipeline = None
 manager = ConnectionManager()
 mdns_service = MdnsService()
+
+LLM_PROFILE_CACHE: Dict[str, Dict[str, object]] = {}
+
+
+def _load_llm_profiles() -> Dict[str, Dict[str, object]]:
+    if LLM_PROFILE_CACHE:
+        return LLM_PROFILE_CACHE
+    repo_root = Path(__file__).resolve().parents[2]
+    llms_path = repo_root / "app" / "src" / "assets" / "llms.json"
+    if not llms_path.exists():
+        return {}
+    try:
+        data = json.loads(llms_path.read_text(encoding="utf-8"))
+        for item in data if isinstance(data, list) else []:
+            if isinstance(item, dict) and isinstance(item.get("repo_id"), str):
+                LLM_PROFILE_CACHE[item["repo_id"]] = item
+    except Exception:
+        return {}
+    return LLM_PROFILE_CACHE
+
+
+def _is_thinking_model(repo_id: str) -> bool:
+    profile = _load_llm_profiles().get(repo_id)
+    return bool(profile and profile.get("thinking"))
+
+
+def _strip_thinking(text: str) -> str:
+    if not text:
+        return text
+    cleaned = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL | re.IGNORECASE)
+    cleaned = re.sub(r"</?think>", "", cleaned, flags=re.IGNORECASE)
+    return cleaned.strip()
 
 
 @asynccontextmanager
@@ -695,114 +728,188 @@ async def update_user(user_id: str, body: Dict[str, Any]):
         return {"error": "User not found"}, 404
     return {"id": user.id, "name": user.name}
 
-# --- Personalities CRUD ---
+# --- Experiences CRUD (personalities, games, stories) ---
 
-@app.get("/personalities")
-async def get_personalities(include_hidden: bool = False):
-    """Get all personalities."""
-    personalities = db_service.db_service.get_personalities(include_hidden=include_hidden)
-    return [
-        {
-            "id": p.id,
-            "name": p.name,
-            "prompt": p.prompt,
-            "short_description": p.short_description,
-            "tags": p.tags,
-            "is_visible": p.is_visible,
-            "is_global": p.is_global,
-            "voice_id": p.voice_id,
-            "img_src": getattr(p, "img_src", None),
-            "created_at": getattr(p, "created_at", None),
-        }
-        for p in personalities
-    ]
-
-class PersonalityCreate(BaseModel):
-    name: str
-    prompt: str
-    short_description: Optional[str] = ""
-    tags: list = []
-    voice_id: str = "radio"
-    is_global: bool = False
-    img_src: Optional[str] = None
-
-@app.post("/personalities")
-async def create_personality(body: PersonalityCreate):
-    """Create a new personality."""
-    p = db_service.db_service.create_personality(
-        name=body.name,
-        prompt=body.prompt,
-        short_description=body.short_description or "",
-        tags=body.tags,
-        voice_id=body.voice_id,
-        is_global=False,
-        img_src=body.img_src,
-    )
-    return {"id": p.id, "name": p.name}
-
-class GeneratePersonalityRequest(BaseModel):
-    description: str
-    voice_id: Optional[str] = None
-
-@app.post("/personalities/generate")
-async def generate_personality(body: GeneratePersonalityRequest):
-    """Generate a personality from a description using the LLM."""
-    if not pipeline:
-         raise HTTPException(status_code=503, detail="AI engine not ready")
-    
-    description = body.description
-    voice_id = body.voice_id or "radio"
-    logger.info(f"Generating personality from description: {description}")
-    
-    # 1. Generate Name
-    name_prompt = f"Based on this description: '{description}', suggest a short, creative name for this character. Output ONLY the name, nothing else."
-    name = await pipeline.generate_text_simple(name_prompt, max_tokens=30)
-    name = name.strip().strip('"').strip("'").split("\n")[0]
-    
-    # 2. Generate Short Description
-    desc_prompt = f"Based on this description: '{description}', provide a very short (1 sentence) description of this character. Output ONLY the description."
-    short_desc = await pipeline.generate_text_simple(desc_prompt, max_tokens=100)
-    short_desc = short_desc.strip().strip('"').strip("'")
-    
-    # 3. Generate System Prompt
-    sys_prompt = f"Based on this description: '{description}', write a system prompt for an AI to act as this character. The prompt should start with 'You are [Name]...'. Output ONLY the prompt."
-    system_prompt = await pipeline.generate_text_simple(sys_prompt, max_tokens=300)
-    system_prompt = system_prompt.strip()
-    
-    tags: list = []
-    
-    # Create the personality
-    p = db_service.db_service.create_personality(
-        name=name,
-        prompt=system_prompt,
-        short_description=short_desc,
-        tags=tags,
-        voice_id=voice_id,
-        is_global=False
-    )
-    
+def _experience_to_dict(p):
     return {
         "id": p.id,
         "name": p.name,
         "prompt": p.prompt,
         "short_description": p.short_description,
         "tags": p.tags,
+        "is_visible": p.is_visible,
+        "is_global": p.is_global,
         "voice_id": p.voice_id,
+        "type": getattr(p, "type", "personality"),
         "img_src": getattr(p, "img_src", None),
+        "created_at": getattr(p, "created_at", None),
     }
+
+
+@app.get("/experiences")
+async def get_experiences(include_hidden: bool = False, type: Optional[str] = None):
+    """Get all experiences (personalities, games, stories)."""
+    experiences = db_service.db_service.get_experiences(
+        include_hidden=include_hidden,
+        experience_type=type if type in ("personality", "game", "story") else None,
+    )
+    return [_experience_to_dict(p) for p in experiences]
+
+
+@app.get("/personalities")
+async def get_personalities(include_hidden: bool = False):
+    """Get all personalities (backward compatible)."""
+    personalities = db_service.db_service.get_experiences(
+        include_hidden=include_hidden,
+        experience_type=None,  # Return all types for backward compatibility
+    )
+    return [_experience_to_dict(p) for p in personalities]
+
+
+class ExperienceCreate(BaseModel):
+    name: str
+    prompt: str
+    short_description: Optional[str] = ""
+    tags: list = []
+    voice_id: str = "radio"
+    type: str = "personality"
+    is_global: bool = False
+    img_src: Optional[str] = None
+
+
+# Alias for backward compatibility
+PersonalityCreate = ExperienceCreate
+
+
+@app.post("/experiences")
+async def create_experience(body: ExperienceCreate):
+    """Create a new experience (personality, game, or story)."""
+    exp_type = body.type if body.type in ("personality", "game", "story") else "personality"
+    p = db_service.db_service.create_experience(
+        name=body.name,
+        prompt=body.prompt,
+        short_description=body.short_description or "",
+        tags=body.tags,
+        voice_id=body.voice_id,
+        experience_type=exp_type,
+        is_global=False,
+        img_src=body.img_src,
+    )
+    return _experience_to_dict(p)
+
+
+@app.post("/personalities")
+async def create_personality(body: ExperienceCreate):
+    """Create a new personality (backward compatible)."""
+    p = db_service.db_service.create_experience(
+        name=body.name,
+        prompt=body.prompt,
+        short_description=body.short_description or "",
+        tags=body.tags,
+        voice_id=body.voice_id,
+        experience_type="personality",
+        is_global=False,
+        img_src=body.img_src,
+    )
+    return {"id": p.id, "name": p.name}
+
+
+class GenerateExperienceRequest(BaseModel):
+    description: str
+    voice_id: Optional[str] = None
+    type: str = "personality"
+
+
+# Alias for backward compatibility
+GeneratePersonalityRequest = GenerateExperienceRequest
+
+
+@app.post("/experiences/generate")
+async def generate_experience(body: GenerateExperienceRequest):
+    """Generate an experience from a description using the LLM."""
+    if not pipeline:
+        raise HTTPException(status_code=503, detail="AI engine not ready")
+
+    description = body.description
+    voice_id = body.voice_id or "radio"
+    exp_type = body.type if body.type in ("personality", "game", "story") else "personality"
+    logger.info(f"Generating {exp_type} from description: {description}")
+
+    type_context = {
+        "personality": "a character to chat with",
+        "game": "an interactive game host",
+        "story": "an interactive storyteller",
+    }
+    context = type_context.get(exp_type, "a character")
+
+    # 1. Generate Name
+    name_prompt = f"Based on this description: '{description}', suggest a short, creative name for {context}. Output ONLY the name, nothing else."
+    name = await pipeline.generate_text_simple(name_prompt, max_tokens=30)
+    name = name.strip().strip('"').strip("'").split("\n")[0]
+
+    # 2. Generate Short Description
+    desc_prompt = f"Based on this description: '{description}', provide a very short (1 sentence) description of {context}. Output ONLY the description."
+    short_desc = await pipeline.generate_text_simple(desc_prompt, max_tokens=100)
+    short_desc = short_desc.strip().strip('"').strip("'")
+
+    # 3. Generate System Prompt
+    sys_prompt = f"Based on this description: '{description}', write a system prompt for an AI to act as {context}. The prompt should start with 'You are [Name]...'. Output ONLY the prompt."
+    system_prompt = await pipeline.generate_text_simple(sys_prompt, max_tokens=300)
+    system_prompt = system_prompt.strip()
+
+    tags: list = []
+
+    p = db_service.db_service.create_experience(
+        name=name,
+        prompt=system_prompt,
+        short_description=short_desc,
+        tags=tags,
+        voice_id=voice_id,
+        experience_type=exp_type,
+        is_global=False,
+    )
+
+    return _experience_to_dict(p)
+
+
+@app.post("/personalities/generate")
+async def generate_personality(body: GenerateExperienceRequest):
+    """Generate a personality from description (backward compatible)."""
+    body.type = "personality"
+    return await generate_experience(body)
+
+
+@app.put("/experiences/{experience_id}")
+async def update_experience(experience_id: str, body: Dict[str, Any]):
+    """Update an experience."""
+    p = db_service.db_service.update_experience(experience_id, **body)
+    if not p:
+        raise HTTPException(status_code=404, detail="Experience not found")
+    return _experience_to_dict(p)
+
 
 @app.put("/personalities/{personality_id}")
 async def update_personality(personality_id: str, body: Dict[str, Any]):
-    """Update a personality."""
-    p = db_service.db_service.update_personality(personality_id, **body)
+    """Update a personality (backward compatible)."""
+    p = db_service.db_service.update_experience(personality_id, **body)
     if not p:
         return {"error": "Personality not found"}, 404
     return {"id": p.id, "name": p.name}
 
 
+@app.delete("/experiences/{experience_id}")
+async def delete_experience(experience_id: str):
+    """Delete an experience."""
+    ok = db_service.db_service.delete_experience(experience_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Experience not found or cannot delete global experience")
+    return {"ok": True}
+
+
 @app.delete("/personalities/{personality_id}")
 async def delete_personality(personality_id: str):
-    ok = db_service.db_service.delete_personality(personality_id)
+    """Delete a personality (backward compatible)."""
+    ok = db_service.db_service.delete_experience(personality_id)
     if not ok:
         raise HTTPException(status_code=404, detail="Personality not found or cannot delete global personality")
     return {"ok": True}
@@ -896,6 +1003,9 @@ async def websocket_unified(websocket: WebSocket, client_type: str = Query(defau
         await websocket.close()
         return
 
+    llm_repo = getattr(pipeline, "llm_model", "") or ""
+    thinking_model = _is_thinking_model(llm_repo)
+
     session_id = str(uuid.uuid4())
     
     # Get active user/personality
@@ -953,6 +1063,8 @@ async def websocket_unified(websocket: WebSocket, client_type: str = Query(defau
         if tts_backend != "chatterbox":
             tts_backend = "chatterbox"
 
+        experience_type = getattr(personality, "type", "personality") if personality else "personality"
+
         behavior_constraints = (
             "You always respond with short sentences. "
             "Avoid punctuation like parentheses or colons or markdown that would not appear in conversational speech. Do not use Markdown formatting (no *, **, _, __, backticks). "
@@ -964,6 +1076,39 @@ async def websocket_unified(websocket: WebSocket, client_type: str = Query(defau
             "Use only these cues naturally in context to enhance the conversational flow. "
             "Examples: [chuckle] That is funny. [sigh] That was a long day."
         )
+
+        if experience_type == "game":
+            behavior_constraints += (
+                " You are the game host and you do everything needed to run the game. "
+                "Do NOT put any setup tasks on the user. Do NOT ask the user to choose a mode or category unless they ask for it. "
+                "Start the game immediately after greeting; greet in one short line and then begin the first move. "
+                "Never ask the user to think of something; you choose any secret item or answer internally. "
+                "If the user says begin, start, ready, or hi/hello/hey, immediately start the game with the correct opening. "
+                "Keep the game moving with one clear prompt at a time. "
+                "After each user turn, respond and then prompt for the next step."
+            )
+
+            game_name = (getattr(personality, "name", "") or "").lower()
+            if "20 questions" in game_name or "twenty questions" in game_name:
+                behavior_constraints += (
+                    " This is 20 Questions. You secretly choose an item and the user asks yes/no questions. "
+                    "Answer with Yes/No/Unsure plus a short friendly sentence. "
+                    "Always include a running count like 'Question 3/20' in every reply after a question. "
+                    "If the user makes a direct guess, confirm if correct and end the round. "
+                    "If incorrect, say it's not correct and continue with the next question count. "
+                    "Offer a gentle hint after Question 10 or if the user asks for a hint."
+                )
+        elif experience_type == "story":
+            behavior_constraints += (
+                " You are a bedtime-style storyteller for young kids. "
+                "Tell the story yourself without asking questions or waiting for input. "
+                "Do NOT ask the user to pick a setting, name, or choice; you decide and continue. "
+                "If the user says hi/hello/hey/start/ready or gives unclear input, gently keep the story going. "
+                "Keep sentences short, warm, and simple. Avoid scary or complex themes."
+            )
+
+        if thinking_model:
+            behavior_constraints += " Do not output <think> or reasoning text. Respond with the final answer only."
 
         sys_prompt = build_system_prompt(
             personality_name=getattr(personality, "name", None),
@@ -1019,12 +1164,30 @@ async def websocket_unified(websocket: WebSocket, client_type: str = Query(defau
     # Generate and send initial greeting (speak first, then listen)
     cancel_event = asyncio.Event()
     try:
-        greeting_user_text = "[System] The user just connected. Greet them with a short friendly sentence (under 8 words)."
+        experience_type = getattr(personality, "type", "personality") if personality else "personality"
+        if experience_type == "game":
+            greeting_user_text = (
+                "[System] The user just connected. Give a short greeting (under 8 words) "
+                "and immediately start the game with the first move. Do NOT ask if they are ready."
+            )
+        elif experience_type == "story":
+            greeting_user_text = (
+                "[System] The user just connected. Start the story immediately with a warm, kid-friendly opening. "
+                "Use 1-2 short sentences and end with a full stop. Do NOT ask a question or wait for input."
+            )
+        else:
+            greeting_user_text = "[System] The user just connected. Greet them with a short friendly sentence (under 8 words)."
         greeting_messages = _build_llm_context(greeting_user_text)
         greeting_text = await pipeline.generate_response(
-            greeting_user_text, messages=greeting_messages, max_tokens=50
+            greeting_user_text,
+            messages=greeting_messages,
+            max_tokens=50,
+            clear_thinking=True if thinking_model else None,
         )
         greeting_text = greeting_text.strip() or "Hello!"
+
+        if thinking_model:
+            greeting_text = _strip_thinking(greeting_text)
 
         allow_paralinguistic = (getattr(pipeline, "tts_backend", None) or "chatterbox") == "chatterbox"
         greeting_text = sanitize_spoken_text(greeting_text, allow_paralinguistic=allow_paralinguistic)
@@ -1162,13 +1325,17 @@ async def websocket_unified(websocket: WebSocket, client_type: str = Query(defau
         logger.info(f"{client_label} Generating LLM response...")
         try:
             full_response = await pipeline.generate_response(
-                transcription, messages=llm_messages
+                transcription,
+                messages=llm_messages,
+                clear_thinking=True if thinking_model else None,
             )
         except Exception as e:
             logger.error(f"{client_label} LLM generation error: {e}")
             return
 
         raw_response = full_response
+        if thinking_model:
+            full_response = _strip_thinking(full_response)
         allow_paralinguistic = (getattr(pipeline, "tts_backend", None) or "chatterbox") == "chatterbox"
         full_response = sanitize_spoken_text(full_response, allow_paralinguistic=allow_paralinguistic)
         if raw_response != full_response:

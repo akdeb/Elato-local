@@ -2,6 +2,7 @@ import json
 import logging
 import time
 import uuid
+from typing import List
 
 from .paths import assets_dir
 
@@ -9,21 +10,21 @@ logger = logging.getLogger(__name__)
 
 
 class SeedMixin:
-    def sync_global_voices_and_personalities(self) -> None:
+    def sync_global_voices_and_experiences(self) -> None:
+        """Sync voices and experiences (personalities, games, stories) from JSON assets."""
         voices_path = assets_dir() / "voices.json"
-        personalities_path = assets_dir() / "personalities.json"
-        if not voices_path.exists() or not personalities_path.exists():
+        if not voices_path.exists():
             return
 
         try:
             voices_payload = json.loads(voices_path.read_text(encoding="utf-8"))
-            personalities_payload = json.loads(personalities_path.read_text(encoding="utf-8"))
         except Exception:
             return
 
         conn = self._get_conn()
         cursor = conn.cursor()
 
+        # Sync voices
         if isinstance(voices_payload, list):
             for item in voices_payload:
                 if not isinstance(item, dict):
@@ -54,14 +55,28 @@ class SeedMixin:
                     ),
                 )
 
-        if isinstance(personalities_payload, list):
-            for item in personalities_payload:
+        # Sync experiences from multiple JSON files
+        experience_files = ["personalities.json", "games.json", "stories.json"]
+        for filename in experience_files:
+            filepath = assets_dir() / filename
+            if not filepath.exists():
+                continue
+            try:
+                payload = json.loads(filepath.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+
+            if not isinstance(payload, list):
+                continue
+
+            for item in payload:
                 if not isinstance(item, dict):
                     continue
                 p_id = item.get("id")
                 name = item.get("name")
                 prompt = item.get("prompt")
                 voice_id = item.get("voice_id")
+                exp_type = item.get("type", "personality")
                 if not p_id or not name or not prompt or not voice_id:
                     continue
                 cursor.execute(
@@ -69,11 +84,12 @@ class SeedMixin:
                     (str(voice_id),),
                 )
                 if not cursor.fetchone():
+                    logger.warning(f"Voice {voice_id} not found, skipping {p_id}")
                     continue
                 cursor.execute(
                     """
-                    INSERT INTO personalities (id, name, prompt, short_description, tags, is_visible, voice_id, is_global, img_src, created_at)
-                    VALUES (?, ?, ?, ?, ?, 1, ?, 1, ?, ?)
+                    INSERT INTO personalities (id, name, prompt, short_description, tags, is_visible, voice_id, is_global, img_src, type, created_at)
+                    VALUES (?, ?, ?, ?, ?, 1, ?, 1, ?, ?, ?)
                     ON CONFLICT(id) DO UPDATE SET
                       name = excluded.name,
                       prompt = excluded.prompt,
@@ -83,6 +99,7 @@ class SeedMixin:
                       voice_id = excluded.voice_id,
                       is_global = excluded.is_global,
                       img_src = excluded.img_src,
+                      type = excluded.type,
                       created_at = COALESCE(personalities.created_at, excluded.created_at)
                     """,
                     (
@@ -93,12 +110,17 @@ class SeedMixin:
                         json.dumps(item.get("tags") or []),
                         str(voice_id),
                         str(item.get("img_src") or ""),
+                        str(exp_type),
                         time.time(),
                     ),
                 )
 
         conn.commit()
         conn.close()
+
+    def sync_global_voices_and_personalities(self) -> None:
+        """Backward-compatible alias."""
+        self.sync_global_voices_and_experiences()
 
     def _seed_default_user(self) -> None:
         conn = self._get_conn()
