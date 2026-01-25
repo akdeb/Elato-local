@@ -19,8 +19,8 @@ def list_serial_ports() -> List[str]:
 
 
 def firmware_bin_path() -> Path:
-    base = Path(__file__).resolve().parents[1]
-    return base / "firmware" / "firmware.bin"
+    repo_root = Path(__file__).resolve().parents[3]
+    return repo_root / "resources" / "firmware" / "firmware.bin"
 
 
 def run_firmware_flash(

@@ -28,7 +28,7 @@ def resolve_db_path(db_path: Optional[str] = None) -> str:
 
 
 def migrations_dir() -> Path:
-    return Path(__file__).resolve().parents[1] / "migrations"
+    return Path(__file__).resolve().parents[1] / "resources" / "python-backend" / "migrations"
 
 
 def assets_dir() -> Path:
