@@ -17,7 +17,8 @@
 4. Make sure your MacOS is on the same WiFi network. 
 5. Your ESP32 should now connect whenever it is powered on while the server is running!
 
-# Tested on
+## Tested on
+
 1. M1 Pro 2021 Macbook Pro
 2. M4 Pro 2024 Macbook Pro
 
