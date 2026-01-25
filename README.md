@@ -9,6 +9,14 @@
 5. Run `npm install`
 6. Run `npm run tauri dev`
 
+## Flash to ESP32
+
+1. Go to `AI Settings` and click on `Flash Firmware` with your ESP32-S3 device connected to your MacOS Apple Silicon device.
+2. The device will open a WiFi captive portal `ELATO` to configure the WiFi network.
+3. Add your WiFi network details and click connect.
+4. Make sure your MacOS is on the same WiFi network. 
+5. Your ESP32 should now connect whenever it is powered on!
+
 ## Project Structure
 
 ```
