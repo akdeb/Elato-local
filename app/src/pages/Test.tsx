@@ -1,8 +1,10 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { ChatTranscript } from "../components/ChatTranscript";
 import { useVoiceWs } from "../state/VoiceWsContext";
 
 export const TestPage = () => {
   const voiceWs = useVoiceWs();
+  const [imageError, setImageError] = useState(false);
 
   useEffect(() => {
     if (!voiceWs.isActive) {
@@ -10,6 +12,10 @@ export const TestPage = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    setImageError(false);
+  }, [voiceWs.characterImageSrc]);
 
   const statusDotClass =
     voiceWs.status === "connected"
@@ -34,44 +40,61 @@ export const TestPage = () => {
 
   return (
     <div>
-      <div className="flex justify-between items-start mb-8">
-        <div>
-          <h2 className="text-3xl font-black">LIVE</h2>
-          <div className="mt-2 font-mono text-xs text-gray-600">
-            Character: <span className="font-bold text-black">{voiceWs.characterName}</span>
+      <div className="sticky top-0 z-10 bg-white border-b border-gray-100 pb-6">
+        <div className="flex justify-between items-start gap-8 pt-4">
+          <div>
+            <h2 className="text-3xl font-black">LIVE</h2>
+            <div className="mt-2 font-mono text-xs text-gray-600">
+              Character: <span className="font-bold text-black">{voiceWs.characterName}</span>
+            </div>
+            <div className="mt-1 font-mono text-xs text-gray-600 inline-flex items-center gap-2">
+              <span className={`w-2.5 h-2.5 rounded-full border border-black ${statusDotClass}`} />
+              <span className="capitalize">{voiceWs.status}</span>
+              {micStatusLabel && (
+                <span className="text-gray-500">
+                  • {micStatusLabel}
+                </span>
+              )}
+            </div>
+            {voiceWs.error && <div className="mt-3 font-mono text-xs text-red-700">{voiceWs.error}</div>}
           </div>
-          <div className="mt-1 font-mono text-xs text-gray-600 inline-flex items-center gap-2">
-            <span className={`w-2.5 h-2.5 rounded-full border border-black ${statusDotClass}`} />
-            <span className="capitalize">{voiceWs.status}</span>
-            {micStatusLabel && (
-              <span className="text-gray-500">
-                • {micStatusLabel}
-              </span>
-            )}
+
+          <div className="flex flex-col items-center">
+            <div
+              className="rounded-full shadow-[0_14px_30px_rgba(0,0,0,0.18)] transition-shadow"
+              aria-hidden
+              style={{
+                width: 148,
+                height: 148,
+                transform: `scale(${orbScale})`,
+                transition: "transform 80ms linear",
+                opacity: voiceWs.status === "connected" ? 1 : 0.7,
+              }}
+            >
+              {voiceWs.characterImageSrc && !imageError ? (
+                <img
+                  src={voiceWs.characterImageSrc}
+                  alt=""
+                  className="w-full h-full rounded-full border-2 border-black object-cover bg-white"
+                  onError={() => setImageError(true)}
+                />
+              ) : (
+                <div className="w-full h-full rounded-full border-2 border-black bg-[#9b5cff]" />
+              )}
+            </div>
+
+            <div className="mt-4 font-mono text-xs text-gray-600 text-center">
+              {voiceWs.status === "connecting" && "Connecting…"}
+              {voiceWs.status === "error" && "WebSocket error"}
+              {voiceWs.status === "disconnected" && "Disconnected"}
+              {voiceWs.status === "connected" && "Live"}
+            </div>
           </div>
-          {voiceWs.error && <div className="mt-3 font-mono text-xs text-red-700">{voiceWs.error}</div>}
         </div>
       </div>
 
-      <div className="flex flex-col items-center justify-center py-16">
-        <div
-          className="rounded-full border-2 border-black shadow-[0_14px_30px_rgba(0,0,0,0.18)] bg-[#9b5cff] transition-shadow"
-          aria-hidden
-          style={{
-            width: 148,
-            height: 148,
-            transform: `scale(${orbScale})`,
-            transition: "transform 80ms linear",
-            opacity: voiceWs.status === "connected" ? 1 : 0.7,
-          }}
-        />
-
-        <div className="mt-8 font-mono text-xs text-gray-600 text-center">
-          {voiceWs.status === "connecting" && "Connecting…"}
-          {voiceWs.status === "error" && "WebSocket error"}
-          {voiceWs.status === "disconnected" && "Disconnected"}
-          {voiceWs.status === "connected" && "Live"}
-        </div>
+      <div className="space-y-3 pt-8">
+        <ChatTranscript messages={voiceWs.transcript} isLive autoScroll />
       </div>
     </div>
   );

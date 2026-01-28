@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use tauri::{AppHandle, Manager};
 
-use crate::paths::{get_elato_dir, get_venv_python, get_voices_dir};
+use crate::paths::{get_elato_dir, get_images_dir, get_venv_python, get_voices_dir};
 
 pub struct ApiProcess(pub Mutex<Option<Child>>);
 
@@ -95,6 +95,7 @@ pub async fn start_backend(app: AppHandle) -> Result<String, String> {
 
     let elato_db_path = get_elato_dir(&app).join("elato.db");
     let elato_voices_dir = get_voices_dir(&app);
+    let elato_images_dir = get_images_dir(&app);
 
     ensure_port_free(8000);
 
@@ -109,6 +110,7 @@ pub async fn start_backend(app: AppHandle) -> Result<String, String> {
         .current_dir(&python_dir)
         .env("ELATO_DB_PATH", elato_db_path.to_string_lossy().to_string())
         .env("ELATO_VOICES_DIR", elato_voices_dir.to_string_lossy().to_string())
+        .env("ELATO_IMAGES_DIR", elato_images_dir.to_string_lossy().to_string())
         .env("TOKENIZERS_PARALLELISM", "false")
         .env("HF_HUB_DISABLE_XET", "1")
         .env("HF_HUB_ENABLE_HF_TRANSFER", "1")
@@ -155,6 +157,7 @@ pub fn setup_backend(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Err
 
     let elato_db_path = get_elato_dir(&app_handle).join("elato.db");
     let elato_voices_dir = get_voices_dir(&app_handle);
+    let elato_images_dir = get_images_dir(&app_handle);
     println!("[TAURI] DB Path: {:?}", elato_db_path);
 
     let child = Command::new(&python_path)
@@ -168,6 +171,7 @@ pub fn setup_backend(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Err
         .current_dir(&python_dir)
         .env("ELATO_DB_PATH", elato_db_path.to_string_lossy().to_string())
         .env("ELATO_VOICES_DIR", elato_voices_dir.to_string_lossy().to_string())
+        .env("ELATO_IMAGES_DIR", elato_images_dir.to_string_lossy().to_string())
         .env("TOKENIZERS_PARALLELISM", "false")
         .env("HF_HUB_DISABLE_XET", "1")
         .env("HF_HUB_ENABLE_HF_TRANSFER", "1")

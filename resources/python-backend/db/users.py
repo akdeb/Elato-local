@@ -23,6 +23,7 @@ class UsersMixin:
                 likes=json.loads(row["likes"]) if row["likes"] else [],
                 current_personality_id=row["current_personality_id"],
                 user_type=row["user_type"] or "family",
+                avatar_emoji=row["avatar_emoji"] if "avatar_emoji" in row.keys() else None,
             )
             for row in rows
         ]
@@ -45,6 +46,7 @@ class UsersMixin:
             likes=json.loads(row["likes"]) if row["likes"] else [],
             current_personality_id=row["current_personality_id"],
             user_type=row["user_type"] or "family",
+            avatar_emoji=row["avatar_emoji"] if "avatar_emoji" in row.keys() else None,
         )
 
     def create_user(
@@ -57,6 +59,7 @@ class UsersMixin:
         likes: Optional[List[str]] = None,
         current_personality_id: Optional[str] = None,
         user_type: str = "family",
+        avatar_emoji: Optional[str] = None,
     ) -> User:
         likes = likes or []
         u_id = str(uuid.uuid4())
@@ -64,8 +67,8 @@ class UsersMixin:
         cursor = conn.cursor()
         cursor.execute(
             """
-            INSERT INTO users (id, name, age, dob, hobbies, about_you, personality_type, likes, current_personality_id, user_type)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO users (id, name, age, dob, hobbies, about_you, personality_type, likes, current_personality_id, user_type, avatar_emoji)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 u_id,
@@ -78,6 +81,7 @@ class UsersMixin:
                 json.dumps(likes),
                 current_personality_id,
                 user_type,
+                avatar_emoji,
             ),
         )
         conn.commit()
@@ -92,6 +96,7 @@ class UsersMixin:
             likes=likes,
             current_personality_id=current_personality_id,
             user_type=user_type,
+            avatar_emoji=avatar_emoji,
         )
 
     def update_user(self, u_id: str, **kwargs: Any) -> Optional[User]:
@@ -126,6 +131,9 @@ class UsersMixin:
         if "user_type" in kwargs:
             fields.append("user_type = ?")
             values.append(kwargs["user_type"])
+        if "avatar_emoji" in kwargs:
+            fields.append("avatar_emoji = ?")
+            values.append(kwargs["avatar_emoji"])
 
         if not fields:
             return current

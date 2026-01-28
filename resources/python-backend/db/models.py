@@ -55,6 +55,7 @@ class User:
     likes: List[str]
     current_personality_id: Optional[str]
     user_type: str = "family"
+    avatar_emoji: Optional[str] = None
 
 
 @dataclass

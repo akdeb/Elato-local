@@ -64,6 +64,7 @@ def init_schema(conn: Connection) -> None:
           likes TEXT,
           current_personality_id TEXT,
           user_type TEXT DEFAULT 'family',
+          avatar_emoji TEXT,
           device_volume INTEGER DEFAULT 70,
           FOREIGN KEY (current_personality_id) REFERENCES personalities (id)
         );

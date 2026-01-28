@@ -134,8 +134,8 @@ class SeedMixin:
         user_id = str(uuid.uuid4())
         cursor.execute(
             """
-            INSERT INTO users (id, name, age, dob, hobbies, about_you, personality_type, likes, current_personality_id, user_type)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO users (id, name, age, dob, hobbies, about_you, personality_type, likes, current_personality_id, user_type, avatar_emoji)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 user_id,
@@ -148,6 +148,7 @@ class SeedMixin:
                 json.dumps([]),
                 None,
                 "family",
+                "🙂",
             ),
         )
         conn.commit()

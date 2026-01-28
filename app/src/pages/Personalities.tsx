@@ -4,7 +4,6 @@ import { Image as ImageIcon, Pencil, Trash2 } from 'lucide-react';
 import { useActiveUser } from '../state/ActiveUserContext';
 import { PersonalityModal, PersonalityForModal } from '../components/PersonalityModal';
 import { Link } from 'react-router-dom';
-import { invoke } from '@tauri-apps/api/core';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { VoiceActionButtons } from '../components/VoiceActionButtons';
 import { useVoicePlayback } from '../hooks/useVoicePlayback';
@@ -22,7 +21,7 @@ export const Personalities = () => {
   const { playingVoiceId, isPaused, toggle: toggleVoice } = useVoicePlayback(async (voiceId) => {
     let src = audioSrcByVoiceId[voiceId];
     if (!src) {
-      const b64 = await invoke<string | null>('read_voice_base64', { voiceId });
+      const b64 = await api.readVoiceBase64(voiceId);
       if (!b64) return null;
       src = `data:audio/wav;base64,${b64}`;
       setAudioSrcByVoiceId((prev) => ({ ...prev, [voiceId]: src! }));
@@ -98,7 +97,7 @@ export const Personalities = () => {
     let cancelled = false;
     const loadDownloaded = async () => {
       try {
-        const ids = await invoke<string[]>('list_downloaded_voices');
+        const ids = await api.listDownloadedVoices();
         if (!cancelled) setDownloadedVoiceIds(new Set(Array.isArray(ids) ? ids : []));
       } catch {
         if (!cancelled) setDownloadedVoiceIds(new Set());
@@ -137,7 +136,7 @@ export const Personalities = () => {
   const downloadVoice = async (voiceId: string) => {
     setDownloadingVoiceId(voiceId);
     try {
-      await invoke<string>('download_voice', { voiceId });
+      await api.downloadVoice(voiceId);
       setDownloadedVoiceIds((prev) => {
         const next = new Set(prev);
         next.add(voiceId);
@@ -323,13 +322,13 @@ export const Personalities = () => {
                         }
                         const b64 = btoa(binary);
                         const ext = (f.name.split('.').pop() || '').toLowerCase();
-                        const savedPath = await invoke<string>('save_personality_image_base64', {
-                          personalityId: String(p.id),
-                          base64Image: b64,
-                          ext: ext || null,
-                        });
+                        const savedPath = await api.saveExperienceImageBase64(
+                          String(p.id),
+                          b64,
+                          ext || null
+                        );
 
-                        await api.updatePersonality(String(p.id), { img_src: savedPath });
+                        await api.updatePersonality(String(p.id), { img_src: savedPath?.path || savedPath });
                         await load();
                       } catch (err: any) {
                         setError(err?.message || 'Failed to save image');

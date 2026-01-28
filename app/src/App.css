@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 :root {
-  --color-retro-bg: #f6f0e6;
+  --color-retro-bg: #ffffff;
   --color-retro-fg: #111827;
   --color-retro-accent: #CF79FF;
   --color-retro-border: #000000;
@@ -14,7 +14,7 @@
   --radius-retro-sm: 18px;
   
   --shadow-retro: 0 10px 24px rgba(0, 0, 0, 0.12);
-  --shadow-retro-sm: 0 6px 14px rgba(0, 0, 0, 0.10);
+  --shadow-retro-sm: 0 6px 14px rgba(0, 0, 0, 0.08);
 }
 
 @layer base {
@@ -72,11 +72,13 @@
   }
 
   .retro-card.retro-selected {
-    border: 3px solid var(--color-retro-accent);  
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 0 0 2px var(--color-retro-accent), var(--shadow-retro-sm);
   }
 
   .retro-card.retro-not-selected {
-    border: 3px solid transparent;  
+    border: 1px solid #e5e7eb;
+    box-shadow: var(--shadow-retro-sm);
   }
 
   .retro-dots {
@@ -91,56 +93,83 @@
   }
 
   .retro-btn {
-    padding: 0.5rem 1rem;
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1.5rem;
     background-color: var(--color-retro-yellow);
     color: #111827;
-    font-weight: 700;
-    border: 1px solid black;
-    box-shadow: 0 2px 0 rgba(0, 0, 0, 0.65);
-    border-radius: var(--radius-retro-sm);
-    transition: all 0.15s;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border: none;
+    border-radius: 16px;
+    box-shadow: 0 6px 0 var(--shadow-color, #c58a00);
+    transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
     cursor: pointer;
   }
 
   .retro-btn-sm {
-    padding: 0.25rem 0.5rem;
+    padding: 0.35rem 0.75rem;
     font-size: 0.75rem;
   }
 
   .retro-btn-purple {
     background-color: var(--color-retro-accent);
     color: white;
+    --shadow-color: #7a35a6;
   }
 
   .retro-btn-green {
     background-color: var(--color-retro-green);
-    border-color: var(--color-retro-green-hover);
-    box-shadow: 0 2px 0 var(--color-retro-green-hover);
     color: white;
+    --shadow-color: var(--color-retro-green-hover);
   }
 
   .retro-btn-outline {
-    background-color: transparent;
+    background-color: white;
+    color: #111827;
+    border: 2px solid #f3f4f6;
+    box-shadow: 0 6px 0 #d1d5db;
+  }
+
+
+  .retro-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 0 var(--shadow-color, #c58a00);
+  }
+
+
+  .retro-btn-outline:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 0 #aaa;
   }
 
   .retro-btn-dangerous-outline {
-    background-color: transparent;
-    border-color: #dc2626;
-    color: #dc2626;
-    box-shadow: 0 2px 0 #dc2626;
+    background-color: #fff1f2;
+    color: #9f1239;
+    border: 2px solid #fecdd3;
+    box-shadow: 0 6px 0 #fda4af;
   }
 
   .retro-btn-dangerous-outline:hover {
-    background-color: rgba(220, 38, 38, 0.08);
+    filter: brightness(0.98);
   }
 
   .retro-btn-dangerous-outline:active {
-    background-color: rgba(220, 38, 38, 0.14);
+    filter: brightness(0.95);
+  }
+
+  .retro-btn.no-lift:hover {
+    transform: none;
+    box-shadow: 0 6px 0 var(--shadow-color, #c58a00);
   }
 
   .retro-btn:active {
-    transform: translateY(1px);
-    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.65);
+    transform: translateY(6px);
+    box-shadow: none;
   }
 
   .retro-input {
@@ -162,6 +191,12 @@
     /* border: 1px solid black; */
     box-shadow: var(--shadow-retro-sm);
     border-radius: var(--radius-retro);
+  }
+
+   .retro-card-no-padding {
+    padding: 0;
+    box-shadow: none;
+    border-radius: 0;
   }
 
   .retro-card-outline {

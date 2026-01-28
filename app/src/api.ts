@@ -53,6 +53,36 @@ export const api = {
     return request(`/voices`);
   },
 
+  downloadVoice: async (voiceId: string) => {
+    return request(`/assets/voices/download`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ voice_id: voiceId }),
+    });
+  },
+
+  listDownloadedVoices: async () => {
+    const res = await request(`/assets/voices/list`);
+    return Array.isArray(res?.voices) ? res.voices : [];
+  },
+
+  readVoiceBase64: async (voiceId: string) => {
+    const res = await request(`/assets/voices/${encodeURIComponent(voiceId)}/base64`);
+    return typeof res?.base64 === "string" ? res.base64 : null;
+  },
+
+  saveExperienceImageBase64: async (experienceId: string, base64Image: string, ext?: string | null) => {
+    return request(`/assets/images/save`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        experience_id: experienceId,
+        base64_image: base64Image,
+        ext: ext || null,
+      }),
+    });
+  },
+
   getActiveUser: async () => {
     return request(`/active-user`);
   },

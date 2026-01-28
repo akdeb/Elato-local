@@ -1,7 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
-import { Bot, User, ArrowLeft } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { convertFileSrc } from '@tauri-apps/api/core';
+import { ChatHeader } from '../components/ChatHeader';
+import { ChatSplitAvatar } from '../components/ChatSplitAvatar';
+import { ChatTranscript, type ChatMessage } from '../components/ChatTranscript';
 import { useActiveUser } from '../state/ActiveUserContext';
 
 const API_BASE = (import.meta as any).env?.VITE_API_BASE || 'http://127.0.0.1:8000';
@@ -17,7 +21,23 @@ export const Conversations = () => {
   const [loadingThread, setLoadingThread] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [userNameById, setUserNameById] = useState<Record<string, string>>({});
+  const [userEmojiById, setUserEmojiById] = useState<Record<string, string>>({});
   const [personalityNameById, setPersonalityNameById] = useState<Record<string, string>>({});
+  const [personalityImageById, setPersonalityImageById] = useState<Record<string, string | null>>({});
+
+  const GLOBAL_PERSONALITY_IMAGE_BASE_URL = 'https://pub-a64cd21521e44c81a85db631f1cdaacc.r2.dev';
+
+  const imageSrcForPersonality = (p: any) => {
+    if (p?.is_global) {
+      const personalityId = p?.id != null ? String(p.id) : '';
+      if (!personalityId) return null;
+      return `${GLOBAL_PERSONALITY_IMAGE_BASE_URL}/${encodeURIComponent(personalityId)}.png`;
+    }
+    const src = typeof p?.img_src === 'string' ? p.img_src.trim() : '';
+    if (!src) return null;
+    if (/^https?:\/\//i.test(src)) return src;
+    return convertFileSrc(src);
+  };
 
   const loadSessions = async () => {
     try {
@@ -114,21 +134,29 @@ export const Conversations = () => {
         if (cancelled) return;
 
         const uMap: Record<string, string> = {};
+        const uEmojiMap: Record<string, string> = {};
         for (const u of users || []) {
           if (u?.id && u?.name) uMap[u.id] = u.name;
+          if (u?.id && u?.avatar_emoji) uEmojiMap[u.id] = u.avatar_emoji;
         }
 
         const pMap: Record<string, string> = {};
+        const pImgMap: Record<string, string | null> = {};
         for (const p of personalities || []) {
           if (p?.id && p?.name) pMap[p.id] = p.name;
+          if (p?.id) pImgMap[p.id] = imageSrcForPersonality(p);
         }
 
         setUserNameById(uMap);
+        setUserEmojiById(uEmojiMap);
         setPersonalityNameById(pMap);
+        setPersonalityImageById(pImgMap);
       } catch {
         if (!cancelled) {
           setUserNameById({});
+          setUserEmojiById({});
           setPersonalityNameById({});
+          setPersonalityImageById({});
         }
       }
     };
@@ -144,6 +172,21 @@ export const Conversations = () => {
   const selectedPersonalityName = selectedSession?.personality_id
     ? (personalityNameById[selectedSession.personality_id] || null)
     : null;
+  const selectedPersonalityImage = selectedSession?.personality_id
+    ? (personalityImageById[selectedSession.personality_id] || null)
+    : null;
+  const selectedUserEmoji = selectedSession?.user_id ? (userEmojiById[selectedSession.user_id] || null) : null;
+
+  const threadMessages = useMemo<ChatMessage[]>(
+    () =>
+      thread.map((c: any) => ({
+        id: String(c.id),
+        role: c.role === 'ai' ? 'ai' : 'user',
+        text: c.transcript || '',
+        timestamp: (c.timestamp || 0) * 1000,
+      })),
+    [thread]
+  );
 
   return (
     <div>
@@ -152,7 +195,7 @@ export const Conversations = () => {
         {selectedSessionId && (
           <button
             type="button"
-            className="retro-btn bg-white"
+            className="retro-btn retro-btn-outline bg-white"
             onClick={() => {
               setSelectedSessionId(null);
               setThread([]);
@@ -177,7 +220,7 @@ export const Conversations = () => {
       {error && !loading && (
         <div className="bg-white border-2 border-black rounded-[18px] px-4 py-4 mb-4 retro-shadow-sm">
           <div className="text-xs font-bold uppercase tracking-wider text-red-700">Error</div>
-          <div className="font-mono text-sm text-gray-800 mt-2 break-words">{error}</div>
+          <div className="font-mono text-sm text-gray-800 mt-2 wrap-break-word">{error}</div>
           <div className="font-mono text-[11px] text-gray-500 mt-2">
             Check that the API server is running and that your UI is pointing at the correct base URL.
           </div>
@@ -195,27 +238,42 @@ export const Conversations = () => {
             <button
               key={s.id}
               type="button"
-              className="retro-card w-full text-left bg-white rounded-[18px] px-4 py-4 hover:bg-[#fff3b0] transition-colors"
+              className="retro-card border-0 w-full text-left bg-white rounded-[18px] px-4 py-4 hover:bg-[#fff3b0] transition-colors"
               onClick={() => openSession(s.id)}
             >
               <div className="flex items-center justify-between gap-4">
-                <div>
-                  <div className="text-xs font-bold uppercase tracking-wider">Chat</div>
-                  <div className="font-mono text-sm text-gray-900 break-words">
-                    {(s?.user_id ? (userNameById[s.user_id] || 'User') : 'User') + ' <> ' + (s?.personality_id ? (personalityNameById[s.personality_id] || 'Personality') : 'Personality')}
+                <div className="flex items-center gap-3 min-w-0 text-left">
+                  <ChatSplitAvatar
+                    size={56}
+                    ratio={1.8}
+                    userEmoji={s?.user_id ? userEmojiById[s.user_id] : null}
+                    characterImageSrc={s?.personality_id ? personalityImageById[s.personality_id] : null}
+                    onCharacterClick={
+                      s?.personality_id
+                        ? (e) => {
+                            e?.stopPropagation();
+                            navigate(`/?tab=personality&focus=${encodeURIComponent(String(s.personality_id))}`);
+                          }
+                        : undefined
+                    }
+                    className="shrink-0"
+                  />
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold uppercase tracking-wider">Chat</div>
+                    <div className="font-mono text-sm text-gray-900 truncate">
+                      {(s?.user_id ? (userNameById[s.user_id] || 'User') : 'User') + ' <> ' + (s?.personality_id ? (personalityNameById[s.personality_id] || 'Personality') : 'Personality')}
+                    </div>
+                    <div className="mt-1 font-mono text-xs text-gray-500">
+                      {s.started_at ? new Date(s.started_at * 1000).toLocaleString() : '—'}
+                    </div>
                   </div>
                 </div>
                 <div className="text-right">
                   <div className="text-xs font-bold uppercase tracking-wider">Mode</div>
                   <div className="font-mono text-xs text-gray-700">{s.client_type}</div>
-                </div>
-              </div>
-              <div className="mt-3 flex items-center justify-between">
-                <div className="font-mono text-xs text-gray-500">
-                  {s.started_at ? new Date(s.started_at * 1000).toLocaleString() : '—'}
-                </div>
-                <div className="font-mono text-md text-gray-500">
-                  {typeof s.duration_sec === 'number' ? formatDuration(s.duration_sec) : ''}
+                  <div className="mt-2 font-mono text-md text-gray-500">
+                    {typeof s.duration_sec === 'number' ? formatDuration(s.duration_sec) : ''}
+                  </div>
                 </div>
               </div>
             </button>
@@ -228,10 +286,10 @@ export const Conversations = () => {
                 Chat with the models to create a conversation, then come back here to view it.
               </div>
               <div className="mt-6 flex items-center justify-center gap-3 flex-wrap">
-                <button type="button" className="retro-btn" onClick={() => navigate('/test')}>
-                  Open Test
+                <button type="button" className="retro-btn" onClick={() => navigate('/')}>
+                  Choose 
                 </button>
-                <button type="button" className="retro-btn bg-white" onClick={loadSessions}>
+                <button type="button" className="retro-btn retro-btn-outline bg-white" onClick={loadSessions}>
                   Refresh
                 </button>
               </div>
@@ -242,49 +300,23 @@ export const Conversations = () => {
 
       {selectedSessionId && (
         <div className="space-y-4">
-          <div className="bg-white border border-black rounded-[18px] px-4 py-3 retro-shadow-sm">
-            <div className="text-xs font-bold uppercase tracking-wider">Chat</div>
-            <div className="font-mono text-sm text-gray-900 break-words">
-              {(selectedUserName || 'User') + ' <> ' + (selectedPersonalityName || 'Personality')}
-            </div>
-          </div>
+          <ChatHeader
+            userName={selectedUserName || 'User'}
+            characterName={selectedPersonalityName || 'Personality'}
+            userEmoji={selectedUserEmoji}
+            characterImageSrc={selectedPersonalityImage}
+            onCharacterClick={
+              selectedSession?.personality_id
+                ? () => navigate(`/?tab=personality&focus=${encodeURIComponent(String(selectedSession.personality_id))}`)
+                : undefined
+            }
+          />
 
           {loadingThread && (
             <div className="retro-card font-mono text-sm">Loading session…</div>
           )}
 
-          {!loadingThread && (
-            <div className="bg-white border border-black rounded-[18px] overflow-hidden retro-shadow-sm">
-              {thread.map((c: any, i: number) => (
-                <div
-                  key={c.id}
-                  className={`p-4 flex gap-4 ${i !== thread.length - 1 ? 'border-b border-black' : ''} ${c.role === 'ai' ? 'bg-[#f3efff]' : 'bg-white'}`}
-                >
-                  <div className={`w-8 h-8 shrink-0 border border-black rounded-full flex items-center justify-center ${c.role === 'ai' ? 'bg-[#9b5cff]' : 'bg-[#00c853]'}`}>
-                    {c.role === 'ai' ? <Bot size={16} className="text-white" /> : <User size={16} className="text-white" />}
-                  </div>
-
-                  <div className="flex-1">
-                    <div className="flex justify-between items-start mb-1">
-                      <span className="font-bold uppercase text-xs tracking-wider">
-                        {c.role === 'ai' ? 'SYSTEM' : 'OPERATOR'}
-                      </span>
-                      <span className="font-mono text-xs text-gray-500">
-                        {new Date(c.timestamp * 1000).toLocaleString()}
-                      </span>
-                    </div>
-                    <p className="font-medium leading-relaxed">{c.transcript}</p>
-                  </div>
-                </div>
-              ))}
-
-              {thread.length === 0 && (
-                <div className="p-8 text-center font-mono text-gray-500">
-                  EMPTY SESSION
-                </div>
-              )}
-            </div>
-          )}
+          {!loadingThread && <ChatTranscript messages={threadMessages} emptyLabel="EMPTY SESSION" />}
         </div>
       )}
     </div>

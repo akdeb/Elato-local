@@ -164,24 +164,24 @@ export const Settings = () => {
   return (
     <div>
       <h2 className="text-3xl font-black mb-8 flex items-center gap-3">
-        AI SETTINGS
+        SETTINGS
       </h2>
       
       {error && (
-        <div className="mb-6 p-4 bg-red-100 border-2 border-red-500 text-red-700 font-bold rounded-[12px]">
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 font-bold rounded-[12px]">
           {error}
         </div>
       )}
       
-      <div className="retro-card space-y-8">
+      <div className="retro-card space-y-8 border border-gray-200 shadow-[0_12px_28px_rgba(0,0,0,0.06)]">
         
         {/* LLM Section */}
         <div className="space-y-4">
           <div className="flex flex-col">
-<div className="flex items-center gap-2 mb-2">
+            <div className="flex items-center gap-2 mb-2">
             <Brain className="w-5 h-5" />
             <h3 className="font-bold uppercase text-lg">Language Model (LLM)</h3>
-          </div>  
+            </div>
             <label className="font-bold mb-2 uppercase text-xs opacity-40">
               Hugging Face Repository
             </label>
@@ -199,7 +199,7 @@ export const Settings = () => {
               <button 
                 onClick={handleSaveModel}
                 disabled={showSwitchModal || loading || !llmRepo || llmRepo === models?.llm.repo}
-                className="retro-btn bg-[#9b5cff] text-white disabled:opacity-50 flex items-center gap-2"
+                className="retro-btn retro-btn-outline text-gray-900 disabled:opacity-50 flex items-center gap-2"
               >
                 <Rss className="w-4 h-4" />
                 Update
@@ -215,7 +215,7 @@ export const Settings = () => {
           
         </div>
 
-        <div className="pt-8 border-t-2 border-black">
+        <div className="pt-8 border-t border-gray-200">
           <div className="flex items-center gap-2 justify-between">
             <div className="flex flex-col gap-1">
               <h3 className="flex items-center gap-2 font-bold uppercase text-lg">
@@ -228,9 +228,9 @@ export const Settings = () => {
 
             </div>
             
-                          <button
+              <button
                 type="button"
-                className="retro-btn bg-[#9b5cff] text-white disabled:opacity-50 flex items-center gap-2"
+                className="retro-btn retro-btn-outline text-gray-900 disabled:opacity-50 flex items-center gap-2"
                 onClick={flashFirmware}
                 disabled={!flashEnabled}
               >
@@ -253,7 +253,7 @@ export const Settings = () => {
 
             <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
               <select
-                className="retro-input bg-white flex-1"
+                className="retro-input bg-white border border-gray-200 flex-1"
                 value={selectedPort}
                 onChange={(e) => setSelectedPort(e.target.value)}
                 disabled={flashing}
@@ -274,14 +274,14 @@ export const Settings = () => {
 
           <div className="mt-4">
             <div className="text-xs text-gray-500 uppercase mb-2">Output</div>
-            <pre className="bg-white border-2 border-black rounded-[12px] p-3 text-xs font-mono whitespace-pre-wrap max-h-56 overflow-auto">
+            <pre className="bg-white border border-gray-200 rounded-[12px] p-3 text-xs font-mono whitespace-pre-wrap max-h-56 overflow-auto">
               {flashLog || '—'}
             </pre>
           </div>
         </div>
 
         {/* Device Status Section */}
-        <div className="pt-8 border-t-2 border-black">
+        <div className="pt-8 border-t border-gray-200">
           <h3 className="flex items-center gap-2 font-bold uppercase text-lg">
             <Radio className="w-5 h-5" />
             Device Settings

@@ -1,4 +1,3 @@
-mod assets;
 mod backend;
 mod models;
 mod paths;
@@ -14,11 +13,6 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            assets::download_voice,
-            assets::save_voice_wav_base64,
-            assets::save_personality_image_base64,
-            assets::read_voice_base64,
-            assets::list_downloaded_voices,
             setup::check_setup_status,
             setup::create_python_venv,
             setup::install_python_deps,

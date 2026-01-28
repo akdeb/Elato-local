@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Plus } from "lucide-react";
-import { invoke } from "@tauri-apps/api/core";
 import { PersonalityModal } from "../components/PersonalityModal";
 import { VoiceActionButtons } from "../components/VoiceActionButtons";
 import { useVoicePlayback } from "../hooks/useVoicePlayback";
@@ -60,7 +59,7 @@ export const VoicesPage = () => {
   const { playingVoiceId, isPaused, toggle: toggleVoice } = useVoicePlayback(async (voiceId) => {
     let src = audioSrcByVoiceId[voiceId];
     if (!src) {
-      const b64 = await invoke<string | null>("read_voice_base64", { voiceId });
+      const b64 = await api.readVoiceBase64(voiceId);
       if (!b64) return null;
       src = `data:audio/wav;base64,${b64}`;
       setAudioSrcByVoiceId((prev) => ({ ...prev, [voiceId]: src! }));
@@ -86,7 +85,7 @@ export const VoicesPage = () => {
     const loadAll = async () => {
       await load();
       try {
-        const ids = await invoke<string[]>("list_downloaded_voices");
+        const ids = await api.listDownloadedVoices();
         if (!cancelled) setDownloadedVoiceIds(new Set(Array.isArray(ids) ? ids : []));
       } catch {
         if (!cancelled) setDownloadedVoiceIds(new Set());
@@ -109,7 +108,7 @@ export const VoicesPage = () => {
   const downloadVoice = async (voiceId: string) => {
     setDownloadingVoiceId(voiceId);
     try {
-      await invoke<string>("download_voice", { voiceId });
+      await api.downloadVoice(voiceId);
       setDownloadedVoiceIds((prev) => {
         const next = new Set(prev);
         next.add(voiceId);

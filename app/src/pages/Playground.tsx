@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
-import { Image as ImageIcon, Pencil, Trash2, MessageCircle, Gamepad2, BookOpen } from 'lucide-react';
+import { Image as ImageIcon, Pencil, Trash2, MessageCircle, Gamepad2, BookOpen, Dices } from 'lucide-react';
 import { useActiveUser } from '../state/ActiveUserContext';
 import { ExperienceModal, ExperienceForModal } from '../components/ExperienceModal';
 import { Link, useSearchParams } from 'react-router-dom';
-import { invoke } from '@tauri-apps/api/core';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { VoiceActionButtons } from '../components/VoiceActionButtons';
 import { useVoicePlayback } from '../hooks/useVoicePlayback';
@@ -12,9 +11,9 @@ import { useVoicePlayback } from '../hooks/useVoicePlayback';
 type ExperienceType = 'personality' | 'game' | 'story';
 
 const TAB_CONFIG: { id: ExperienceType; label: string; icon: typeof MessageCircle }[] = [
-  { id: 'personality', label: 'Chat', icon: MessageCircle },
   { id: 'story', label: 'Stories', icon: BookOpen },
-  { id: 'game', label: 'Games', icon: Gamepad2 },
+  { id: 'game', label: 'Games', icon: Dices },
+  { id: 'personality', label: 'Chat', icon: MessageCircle },
 ];
 
 export const Playground = () => {
@@ -34,7 +33,7 @@ export const Playground = () => {
   const { playingVoiceId, isPaused, toggle: toggleVoice } = useVoicePlayback(async (voiceId) => {
     let src = audioSrcByVoiceId[voiceId];
     if (!src) {
-      const b64 = await invoke<string | null>('read_voice_base64', { voiceId });
+      const b64 = await api.readVoiceBase64(voiceId);
       if (!b64) return null;
       src = `data:audio/wav;base64,${b64}`;
       setAudioSrcByVoiceId((prev) => ({ ...prev, [voiceId]: src! }));
@@ -108,10 +107,19 @@ export const Playground = () => {
   }, [activeTab]);
 
   useEffect(() => {
+    const focusId = searchParams.get('focus');
+    if (!focusId || loading) return;
+    const el = document.getElementById(`experience-${focusId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [searchParams, experiences, loading]);
+
+  useEffect(() => {
     let cancelled = false;
     const loadDownloaded = async () => {
       try {
-        const ids = await invoke<string[]>('list_downloaded_voices');
+        const ids = await api.listDownloadedVoices();
         if (!cancelled) setDownloadedVoiceIds(new Set(Array.isArray(ids) ? ids : []));
       } catch {
         if (!cancelled) setDownloadedVoiceIds(new Set());
@@ -150,7 +158,7 @@ export const Playground = () => {
   const downloadVoice = async (voiceId: string) => {
     setDownloadingVoiceId(voiceId);
     try {
-      await invoke<string>('download_voice', { voiceId });
+      await api.downloadVoice(voiceId);
       setDownloadedVoiceIds((prev) => {
         const next = new Set(prev);
         next.add(voiceId);
@@ -240,7 +248,7 @@ export const Playground = () => {
     <div>
       {/* Floating Tab Bar */}
       <div className="flex justify-center mb-6">
-        <div className="inline-flex bg-white border-2 border-black rounded-full p-1 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+        <div className="inline-flex bg-gray-100 rounded-full p-1 shadow-[0_6px_0_rgba(0,0,0,0.12)]">
           {TAB_CONFIG.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -248,10 +256,10 @@ export const Playground = () => {
               <button
                 key={tab.id}
                 onClick={() => handleTabChange(tab.id)}
-                className={`flex items-center gap-2 px-5 py-2 rounded-full font-bold transition-all ${
+                className={`flex items-center gap-2 px-5 py-2 rounded-full font-black uppercase tracking-wide transition-all ${
                   isActive
-                    ? 'bg-[#ffd400] text-black'
-                    : 'bg-transparent text-gray-600 hover:bg-gray-100'
+                    ? 'bg-white text-gray-900'
+                    : 'bg-transparent text-gray-500 hover:bg-white'
                 }`}
               >
                 <Icon size={18} />
@@ -299,6 +307,7 @@ export const Playground = () => {
         {sortedExperiences.map((p) => (
           <div
             key={p.id}
+            id={`experience-${p.id}`}
             role="button"
             tabIndex={0}
             onClick={() => assignToActiveUser(p.id)}
@@ -306,6 +315,9 @@ export const Playground = () => {
               if (e.key === 'Enter' || e.key === ' ') assignToActiveUser(p.id);
             }}
             className={`retro-card relative group text-left cursor-pointer transition-shadow flex flex-col ${activeUser?.current_personality_id === p.id ? 'retro-selected' : 'retro-not-selected'}`}
+style={{
+  padding: "0rem"
+}}
           >
             <div className="absolute top-2 right-2 flex flex-col items-center gap-2 z-10">
               {!p.is_global && (
@@ -336,90 +348,99 @@ export const Playground = () => {
               )}
             </div>
 
-            <div className={`flex flex-col items-start gap-4 ${p.is_global ? '' : 'pr-6'}`}>
-              {!p.is_global ? (
-                <label
-                  className={`w-full h-[100px] rounded-[14px] ${imgSrcFor(p) ? 'retro-dotted' : ''} bg-white flex items-center justify-center cursor-pointer overflow-hidden`}
-                  title="Upload image"
-                  onClick={(e) => e.stopPropagation()}
-                  onKeyDown={(e) => {
-                    e.stopPropagation();
-                  }}
-                >
-                  {imgSrcFor(p) && !brokenImgById[String(p.id)] ? (
-                    <img
-                      src={imgSrcFor(p) || ''}
-                      alt=""
-                      className="w-full h-full object-cover"
-                      onError={() => {
-                        setBrokenImgById((prev) => ({ ...prev, [String(p.id)]: true }));
-                      }}
-                    />
-                  ) : (
-                    <ImageIcon size={18} className="text-gray-600" />
-                  )}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
+            <div className={`flex flex-col items-start gap-4`}>
+              <div className={`w-full`}>
+                {!p.is_global ? (
+                  <label
+                    className={`w-full h-[160px] rounded-t-[24px] ${imgSrcFor(p) ? 'retro-dotted' : ''} bg-white flex items-center justify-center cursor-pointer overflow-hidden`}
+                    title="Upload image"
                     onClick={(e) => e.stopPropagation()}
-                    onChange={async (e) => {
-                      const f = e.target.files?.[0] || null;
-                      if (!f) return;
-                      try {
-                        const buf = await f.arrayBuffer();
-                        let binary = '';
-                        const bytes = new Uint8Array(buf);
-                        const chunkSize = 0x8000;
-                        for (let i = 0; i < bytes.length; i += chunkSize) {
-                          const chunk = bytes.subarray(i, i + chunkSize);
-                          binary += String.fromCharCode(...chunk);
-                        }
-                        const b64 = btoa(binary);
-                        const ext = (f.name.split('.').pop() || '').toLowerCase();
-                        const savedPath = await invoke<string>('save_personality_image_base64', {
-                          personalityId: String(p.id),
-                          base64Image: b64,
-                          ext: ext || null,
-                        });
-
-                        await api.updateExperience(String(p.id), { img_src: savedPath });
-                        await load();
-                      } catch (err: any) {
-                        setError(err?.message || 'Failed to save image');
-                      }
+                    onKeyDown={(e) => {
+                      e.stopPropagation();
                     }}
-                  />
-                </label>
-              ) : (
-                <div className="w-full h-[100px] rounded-[14px] bg-white flex items-center justify-center overflow-hidden">
-                  {imgSrcFor(p) && !brokenImgById[String(p.id)] ? (
-                    <img
-                      src={imgSrcFor(p) || ''}
-                      alt=""
-                      className="w-full h-full object-cover"
-                      onError={() => {
-                        setBrokenImgById((prev) => ({ ...prev, [String(p.id)]: true }));
+                  >
+                    {imgSrcFor(p) && !brokenImgById[String(p.id)] ? (
+                      <div className="w-full h-full flex items-center justify-center overflow-hidden">
+                        <img
+                          src={imgSrcFor(p) || ''}
+                          alt=""
+                          className="h-auto w-auto max-h-full max-w-[80%] object-contain object-center origin-center transition-transform duration-200 group-hover:scale-105"
+                          onError={() => {
+                            setBrokenImgById((prev) => ({ ...prev, [String(p.id)]: true }));
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <ImageIcon size={18} className="text-gray-600" />
+                    )}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={async (e) => {
+                        const f = e.target.files?.[0] || null;
+                        if (!f) return;
+                        try {
+                          const buf = await f.arrayBuffer();
+                          let binary = '';
+                          const bytes = new Uint8Array(buf);
+                          const chunkSize = 0x8000;
+                          for (let i = 0; i < bytes.length; i += chunkSize) {
+                            const chunk = bytes.subarray(i, i + chunkSize);
+                            binary += String.fromCharCode(...chunk);
+                          }
+                          const b64 = btoa(binary);
+                          const ext = (f.name.split('.').pop() || '').toLowerCase();
+                          const savedPath = await api.saveExperienceImageBase64(
+                            String(p.id),
+                            b64,
+                            ext || null
+                          );
+
+                          await api.updateExperience(String(p.id), { img_src: savedPath?.path || savedPath });
+                          await load();
+                        } catch (err: any) {
+                          setError(err?.message || 'Failed to save image');
+                        }
                       }}
                     />
-                  ) : (
-                    <ImageIcon size={18} className="text-gray-600" />
-                  )}
-                </div>
-              )}
+                  </label>
+                ) : (
+                  <div className="w-full h-[160px] rounded-t-[24px] bg-orange-50/50 flex items-center justify-center overflow-hidden"                         style={{
+                            backgroundImage: `radial-gradient(circle, rgba(0,0,0,0.08) 1px, transparent 1px)`,
+                            backgroundSize: '6px 6px'
+                        }}>
+                    {imgSrcFor(p) && !brokenImgById[String(p.id)] ? (
+                      <div className="w-full h-full flex items-center justify-center overflow-hidden">
+                        <img
+                          src={imgSrcFor(p) || ''}
+                          alt=""
+                          className="h-auto w-auto max-h-full max-w-[80%] object-contain object-center origin-center transition-transform duration-200 group-hover:scale-105"
+                          onError={() => {
+                            setBrokenImgById((prev) => ({ ...prev, [String(p.id)]: true }));
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <ImageIcon size={18} className="text-gray-600" />
+                    )}
+                  </div>
+                )}
+              </div>
 
-              <div className="min-w-0 flex-1 mb-2">
-                <h3 className="text-xl font-black leading-tight break-words retro-clamp-2">{p.name}</h3>
-                <p className="text-gray-600 text-sm font-medium mt-2 retro-clamp-2">
+              <div className="min-w-0 flex-1 p-4">
+                <h3 className="text-lg font-black leading-tight wrap-break-word retro-clamp-2">{p.name}</h3>
+                <p className="text-gray-600 text-xs font-medium mt-2 retro-clamp-2">
                   {p.short_description ? String(p.short_description) : '—'}
                 </p>
               </div>
             </div>
 
-            <div className="mt-auto border-t-2 border-black pt-3">
+            <div className="mt-auto border-t border-gray-200 p-4">
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0 flex-1">
-                  <div className="text-xs font-bold uppercase tracking-wider text-gray-500">Voice</div>
+                  <div className="text-xs font-bold uppercase tracking-wider text-gray-400">Voice</div>
                   <Link
                     to={`/voices?voice_id=${encodeURIComponent(p.voice_id)}`}
                     onClick={(e) => e.stopPropagation()}

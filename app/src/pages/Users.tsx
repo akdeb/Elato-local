@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
-import { Pencil, User } from 'lucide-react';
+import { Pencil } from 'lucide-react';
 import { AddUserModal } from '../components/AddUserModal';
 import { EditUserModal } from '../components/EditUserModal';
 import { useActiveUser } from '../state/ActiveUserContext';
+import { EmojiAvatar } from '../components/EmojiAvatar';
 
 export const UsersPage = () => {
   const [users, setUsers] = useState<any[]>([]);
@@ -37,7 +38,7 @@ export const UsersPage = () => {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-8">
+      <div className="flex items-center  gap-4 mb-8">
         <h2 className="text-3xl font-black">MEMBERS</h2>
         <button className="retro-btn" onClick={() => setAddOpen(true)}>
           + Add
@@ -100,8 +101,8 @@ export const UsersPage = () => {
               <Pencil size={16} />
             </button>
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-[#CF79FF] border-2 border-black flex items-center justify-center shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-                <User className="text-white" size={24} />
+              <div className="w-12 h-12 rounded-[14px] border border-gray-200 flex items-center justify-center bg-white shadow-[0_4px_12px_rgba(0,0,0,0.08)]">
+                <EmojiAvatar emoji={u.avatar_emoji} size={28} />
               </div>
               <div>
                 <h3 className="text-xl font-bold flex items-center gap-2">

@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { convertFileSrc } from "@tauri-apps/api/core";
 import { api } from "../api";
 import { useActiveUser } from "./ActiveUserContext";
 
@@ -14,10 +15,19 @@ type VoiceMsg =
 
 type Status = "disconnected" | "connecting" | "connected" | "error";
 
+type TranscriptEntry = {
+  id: string;
+  role: "user" | "ai";
+  text: string;
+  timestamp: number;
+};
+
 type Ctx = {
   status: Status;
   error: string | null;
   characterName: string;
+  characterId: string | null;
+  characterImageSrc: string | null;
   connect: () => void;
   disconnect: () => void;
   isActive: boolean;
@@ -26,6 +36,7 @@ type Ctx = {
   isPaused: boolean;
   isSpeaking: boolean;
   micLevel: number;
+  transcript: TranscriptEntry[];
 };
 
 const VoiceWsContext = createContext<Ctx | null>(null);
@@ -44,6 +55,8 @@ export const VoiceWsProvider = ({ children }: { children: React.ReactNode }) => 
   const [voice, setVoice] = useState<string>("dave");
   const [systemPrompt, setSystemPrompt] = useState<string>("You are a helpful voice assistant. Be concise.");
   const [characterName, setCharacterName] = useState<string>("—");
+  const [characterId, setCharacterId] = useState<string | null>(null);
+  const [characterImageSrc, setCharacterImageSrc] = useState<string | null>(null);
   const [configReady, setConfigReady] = useState<boolean>(false);
 
   const [isRecording, setIsRecording] = useState(false);
@@ -53,6 +66,7 @@ export const VoiceWsProvider = ({ children }: { children: React.ReactNode }) => 
   const lastLevelAtRef = useRef<number>(0);
 
   const [latestSessionId, setLatestSessionId] = useState<string | null>(null);
+  const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
 
   const isRecordingRef = useRef(false);
   const isPausedRef = useRef(false);
@@ -85,6 +99,20 @@ export const VoiceWsProvider = ({ children }: { children: React.ReactNode }) => 
     u.searchParams.set("client_type", "desktop");
     return u.toString();
   }, []);
+
+  const GLOBAL_PERSONALITY_IMAGE_BASE_URL = "https://pub-a64cd21521e44c81a85db631f1cdaacc.r2.dev";
+
+  const imageSrcForPersonality = (p: any) => {
+    if (p?.is_global) {
+      const personalityId = p?.id != null ? String(p.id) : "";
+      if (!personalityId) return null;
+      return `${GLOBAL_PERSONALITY_IMAGE_BASE_URL}/${encodeURIComponent(personalityId)}.png`;
+    }
+    const src = typeof p?.img_src === "string" ? p.img_src.trim() : "";
+    if (!src) return null;
+    if (/^https?:\/\//i.test(src)) return src;
+    return convertFileSrc(src);
+  };
 
   const base64EncodeBytes = (bytes: Uint8Array) => {
     const CHUNK = 0x8000;
@@ -376,6 +404,7 @@ export const VoiceWsProvider = ({ children }: { children: React.ReactNode }) => 
     awaitingResumeRef.current = false;
     autoStartedMicRef.current = false;
     resumeMic();
+    setTranscript([]);
   };
 
   const connect = () => {
@@ -384,6 +413,7 @@ export const VoiceWsProvider = ({ children }: { children: React.ReactNode }) => 
     connectNonceRef.current += 1;
     const nonce = connectNonceRef.current;
 
+    setTranscript([]);
     try {
       wsRef.current?.close();
     } catch {
@@ -483,6 +513,33 @@ export const VoiceWsProvider = ({ children }: { children: React.ReactNode }) => 
           }
         } else if (msg.type === "session_started") {
           setLatestSessionId(msg.session_id || null);
+          setTranscript([]);
+        } else if (msg.type === "transcription") {
+          if (msg.text) {
+            const entry: TranscriptEntry = {
+              id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+              role: "user",
+              text: msg.text,
+              timestamp: Date.now(),
+            };
+            setTranscript((prev) => {
+              const next = [...prev, entry];
+              return next.length > 200 ? next.slice(-200) : next;
+            });
+          }
+        } else if (msg.type === "response") {
+          if (msg.text) {
+            const entry: TranscriptEntry = {
+              id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+              role: "ai",
+              text: msg.text,
+              timestamp: Date.now(),
+            };
+            setTranscript((prev) => {
+              const next = [...prev, entry];
+              return next.length > 200 ? next.slice(-200) : next;
+            });
+          }
         } else if (msg.type === "error") {
           setError(msg.message || "Unknown error");
         }
@@ -503,11 +560,20 @@ export const VoiceWsProvider = ({ children }: { children: React.ReactNode }) => 
         const selected = ps.find((p: any) => p.id === selectedId);
         if (!cancelled && selected) {
           setCharacterName(selected.name || "—");
+          setCharacterId(selected.id ? String(selected.id) : null);
           setVoice(selected.voice_id || "dave");
           setSystemPrompt(selected.prompt || "You are a helpful voice assistant. Be concise.");
+          setCharacterImageSrc(imageSrcForPersonality(selected));
+        } else if (!cancelled) {
+          setCharacterImageSrc(null);
+          setCharacterId(null);
         }
       } catch {
         // ignore
+        if (!cancelled) {
+          setCharacterImageSrc(null);
+          setCharacterId(null);
+        }
       } finally {
         if (!cancelled) setConfigReady(true);
       }
@@ -543,6 +609,8 @@ export const VoiceWsProvider = ({ children }: { children: React.ReactNode }) => 
       status,
       error,
       characterName,
+      characterId,
+      characterImageSrc,
       connect,
       disconnect,
       isActive: status === "connected" || status === "connecting",
@@ -551,8 +619,21 @@ export const VoiceWsProvider = ({ children }: { children: React.ReactNode }) => 
       isPaused,
       isSpeaking,
       micLevel,
+      transcript,
     }),
-    [status, error, characterName, latestSessionId, isRecording, isPaused, isSpeaking, micLevel]
+    [
+      status,
+      error,
+      characterName,
+      characterId,
+      characterImageSrc,
+      latestSessionId,
+      isRecording,
+      isPaused,
+      isSpeaking,
+      micLevel,
+      transcript,
+    ]
   );
 
   return <VoiceWsContext.Provider value={value}>{children}</VoiceWsContext.Provider>;

@@ -12,6 +12,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Dict, List, Optional
 import re
+import urllib.request
 
 os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
 os.environ.setdefault("HF_HUB_ENABLE_HF_TRANSFER", "1")
@@ -102,9 +103,21 @@ async def lifespan(app: FastAPI):
     app.state.pipeline_ready = False
     udp_task = None
     
-    # Start mDNS service advertisement
+    # Start mDNS service advertisement (non-blocking)
     server_port = getattr(app.state, "server_port", 8000)
-    mdns_service.start(server_port)
+
+    async def start_mdns_async() -> None:
+        try:
+            await asyncio.wait_for(asyncio.to_thread(mdns_service.start, server_port), timeout=2.0)
+        except Exception as exc:
+            mdns_service.enabled = False
+            try:
+                mdns_service.current_ip = get_local_ip()
+            except Exception:
+                mdns_service.current_ip = None
+            logger.warning("mDNS start timed out or failed: %s", exc)
+
+    asyncio.create_task(start_mdns_async())
 
     async def broadcast_server():
         ip = get_local_ip()
@@ -203,7 +216,15 @@ async def restart_mdns():
     server_port = getattr(app.state, "server_port", 8000)
     logger.info("Manual mDNS restart requested")
     mdns_service.stop()
-    mdns_service.start(server_port)
+    try:
+        await asyncio.wait_for(asyncio.to_thread(mdns_service.start, server_port), timeout=2.0)
+    except Exception as exc:
+        mdns_service.enabled = False
+        try:
+            mdns_service.current_ip = get_local_ip()
+        except Exception:
+            mdns_service.current_ip = None
+        return {"status": "failed", "error": str(exc), "ip": mdns_service.current_ip}
     return {"status": "restarted", "ip": mdns_service.current_ip}
 
 @app.get("/health")
@@ -687,6 +708,113 @@ async def create_voice(body: VoiceCreate):
         "created_at": getattr(v, "created_at", None),
     }
 
+
+def _app_data_dir() -> Path:
+    db_path = os.environ.get("ELATO_DB_PATH")
+    if db_path:
+        return Path(db_path).expanduser().resolve().parent
+    try:
+        from db.paths import default_db_path
+
+        return Path(default_db_path()).expanduser().resolve().parent
+    except Exception:
+        return Path.cwd()
+
+
+def _voices_dir() -> Path:
+    return Path(os.environ.get("ELATO_VOICES_DIR") or _app_data_dir().joinpath("voices"))
+
+
+def _images_dir() -> Path:
+    return Path(os.environ.get("ELATO_IMAGES_DIR") or _app_data_dir().joinpath("images"))
+
+
+class VoiceDownloadRequest(BaseModel):
+    voice_id: str
+
+
+@app.post("/assets/voices/download")
+async def download_voice_asset(body: VoiceDownloadRequest):
+    voice_id = (body.voice_id or "").strip()
+    if not voice_id:
+        raise HTTPException(status_code=400, detail="voice_id is required")
+
+    url = f"https://pub-6b92949063b142d59fc3478c56ec196c.r2.dev/{voice_id}.wav"
+    try:
+        def _fetch() -> bytes:
+            with urllib.request.urlopen(url, timeout=30) as resp:
+                if resp.status != 200:
+                    raise HTTPException(status_code=404, detail=f"Voice not found: {voice_id}")
+                return resp.read()
+
+        data = await asyncio.to_thread(_fetch)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Failed to download: {e}")
+
+    out_dir = _voices_dir()
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path = out_dir.joinpath(f"{voice_id}.wav")
+    path.write_bytes(data)
+    return {"path": str(path)}
+
+
+@app.get("/assets/voices/list")
+async def list_downloaded_voices():
+    out_dir = _voices_dir()
+    if not out_dir.exists():
+        return {"voices": []}
+    voices: List[str] = []
+    for path in out_dir.iterdir():
+        if not path.is_file() or path.suffix.lower() != ".wav":
+            continue
+        voices.append(path.stem)
+    voices.sort()
+    return {"voices": voices}
+
+
+@app.get("/assets/voices/{voice_id}/base64")
+async def read_voice_base64(voice_id: str):
+    voice_id = (voice_id or "").strip()
+    if not voice_id:
+        return {"base64": None}
+    path = _voices_dir().joinpath(f"{voice_id}.wav")
+    if not path.exists() or not path.is_file():
+        return {"base64": None}
+    data = path.read_bytes()
+    encoded = base64.b64encode(data).decode("utf-8")
+    return {"base64": encoded}
+
+
+class ImageSaveRequest(BaseModel):
+    experience_id: str
+    base64_image: str
+    ext: Optional[str] = None
+
+
+@app.post("/assets/images/save")
+async def save_experience_image(body: ImageSaveRequest):
+    exp_id = (body.experience_id or "").strip()
+    if not exp_id:
+        raise HTTPException(status_code=400, detail="experience_id is required")
+    raw = body.base64_image or ""
+    try:
+        data = base64.b64decode(raw)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to decode base64: {e}")
+
+    safe_ext = (body.ext or "png").lower()
+    safe_ext = "".join(c for c in safe_ext if c.isalnum())
+    if not safe_ext:
+        safe_ext = "png"
+
+    out_dir = _images_dir()
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path = out_dir.joinpath(f"personality_{exp_id}.{safe_ext}")
+    path.write_bytes(data)
+    return {"path": str(path)}
+
 # --- Users CRUD ---
 
 @app.get("/users")
@@ -701,6 +829,7 @@ async def get_users():
             "current_personality_id": u.current_personality_id,
             "user_type": u.user_type,
             "about_you": getattr(u, "about_you", "") or "",
+            "avatar_emoji": getattr(u, "avatar_emoji", None),
         }
         for u in users
     ]
@@ -709,6 +838,7 @@ class UserCreate(BaseModel):
     name: str
     age: Optional[int] = None
     about_you: Optional[str] = ""
+    avatar_emoji: Optional[str] = None
 
 @app.post("/users")
 async def create_user(body: UserCreate):
@@ -717,6 +847,7 @@ async def create_user(body: UserCreate):
         name=body.name,
         age=body.age,
         about_you=body.about_you or "",
+        avatar_emoji=body.avatar_emoji,
     )
     return {"id": user.id, "name": user.name}
 

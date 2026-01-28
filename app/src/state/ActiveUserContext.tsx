@@ -11,6 +11,7 @@ type User = {
   likes: string[];
   current_personality_id?: string | null;
   user_type?: string | null;
+  avatar_emoji?: string | null;
 };
 
 type ActiveUserContextValue = {

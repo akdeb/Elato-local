@@ -325,7 +325,7 @@ export const VoiceClone = ({ open, onClose, onCreated }: Props) => {
 
               <div className="shrink-0 flex w-1/2 flex-col gap-3">
                 <div className="flex items-center gap-3">
-                  <button type="button" className="retro-btn" onClick={startRecord10s} disabled={recording}>
+                  <button type="button" className="retro-btn" style={{ textTransform: 'none' }} onClick={startRecord10s} disabled={recording}>
                     <span className="inline-flex items-center gap-2">
                       <Mic size={16} />
                       {recording ? 'Recording…' : 'Record 12s'}
