@@ -16,7 +16,7 @@ export const ChatSplitAvatar = ({
   size = 48,
   width,
   height,
-  ratio = 1.7,
+  ratio = 1.9,
   userEmoji,
   characterImageSrc,
   onCharacterClick,
@@ -42,22 +42,22 @@ export const ChatSplitAvatar = ({
         aspectRatio: hasExplicitWidth ? undefined : hasExplicitHeight ? `${ratio} / 1` : undefined,
       }}
     >
-      <div
+      {/* <div
         className="absolute inset-0"
         style={{
           background: "linear-gradient(135deg, transparent 48%, rgba(0,0,0,0.35) 50%, transparent 52%)",
         }}
-      />
+      /> */}
 
       <div
-        className="absolute inset-0 flex items-center justify-center"
+        className="absolute inset-0 flex items-start justify-start"
         style={{ clipPath: "polygon(0 0, 100% 0, 0 100%)" }}
       >
         {characterImageSrc && !imgError ? (
           <img
             src={characterImageSrc}
             alt=""
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover object-left"
             onError={() => setImgError(true)}
           />
         ) : (
@@ -75,13 +75,13 @@ export const ChatSplitAvatar = ({
       </div>
 
       <div
-        className="absolute inset-0 flex items-center justify-center text-lg"
+        className="absolute inset-0 flex items-end justify-end text-lg pr-1 pb-1"
         style={{ clipPath: "polygon(100% 0, 100% 100%, 0 100%)" }}
       >
         <EmojiAvatar
           emoji={emoji}
           size={computedHeight}
-          className="translate-x-[3px] translate-y-[3px]"
+          className=""
         />
       </div>
     </div>

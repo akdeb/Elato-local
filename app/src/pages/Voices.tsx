@@ -2,7 +2,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Plus } from "lucide-react";
-import { PersonalityModal } from "../components/PersonalityModal";
+import { Modal } from "../components/Modal";
+import { ExperienceModal } from "../components/ExperienceModal";
+import { CreateTiles, type CreateTileKind } from "../components/CreateTiles";
 import { VoiceActionButtons } from "../components/VoiceActionButtons";
 import { useVoicePlayback } from "../hooks/useVoicePlayback";
 import { VoiceClone } from "../components/VoiceClone";
@@ -15,7 +17,7 @@ export const VoicesPage = () => {
   const [downloadingVoiceId, setDownloadingVoiceId] = useState<string | null>(null);
   const [downloadedVoiceIds, setDownloadedVoiceIds] = useState<Set<string>>(new Set());
   const [audioSrcByVoiceId, setAudioSrcByVoiceId] = useState<Record<string, string>>({});
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const toTimestamp = (v: any) => {
     if (v == null) return 0;
@@ -31,9 +33,11 @@ export const VoicesPage = () => {
 
   const [createVoiceOpen, setCreateVoiceOpen] = useState(false);
 
-  const [createPersonalityOpen, setCreatePersonalityOpen] = useState(false);
-  const [createPersonalityVoiceId, setCreatePersonalityVoiceId] = useState<string | null>(null);
-  const [createPersonalityVoiceName, setCreatePersonalityVoiceName] = useState<string | null>(null);
+  const [createStartOpen, setCreateStartOpen] = useState(false);
+  const [createExperienceOpen, setCreateExperienceOpen] = useState(false);
+  const [createExperienceType, setCreateExperienceType] = useState<"personality" | "game" | "story">("personality");
+  const [createExperienceVoiceId, setCreateExperienceVoiceId] = useState<string | null>(null);
+  const [createExperienceVoiceName, setCreateExperienceVoiceName] = useState<string | null>(null);
 
   const sortedVoices = useMemo(() => {
     const arr = Array.isArray(voices) ? voices.slice() : [];
@@ -98,6 +102,15 @@ export const VoicesPage = () => {
     };
   }, []);
 
+  useEffect(() => {
+    const create = searchParams.get("create");
+    if (create !== "voice") return;
+    setCreateVoiceOpen(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete("create");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
+
 
   useEffect(() => {
     if (!selectedVoiceId) return;
@@ -144,23 +157,42 @@ export const VoicesPage = () => {
     }
   };
 
+  const isDownloaded = (voiceId: string) => downloadedVoiceIds.has(String(voiceId));
+
   return (
     <div>
       <div className="flex justify-between items-center mb-8">
         <h2 className="text-3xl font-black">VOICES</h2>
-        <button type="button" className="retro-btn" onClick={() => setCreateVoiceOpen(true)}>       
-          +  Create    
-        </button>
       </div>
 
-      <PersonalityModal
-        open={createPersonalityOpen}
+      <Modal
+        open={createStartOpen}
+        icon={<Plus size={20} />}
+        title={`Create AI with ${createExperienceVoiceName || "this"} voice`}
+        onClose={() => setCreateStartOpen(false)}
+        panelClassName="w-full max-w-3xl"
+      >
+        <CreateTiles
+          includeVoice={false}
+          onSelect={(kind: CreateTileKind) => {
+            if (kind === "voice") return;
+            const nextType = kind === "character" ? "personality" : kind;
+            setCreateExperienceType(nextType);
+            setCreateStartOpen(false);
+            setCreateExperienceOpen(true);
+          }}
+        />
+      </Modal>
+
+      <ExperienceModal
+        open={createExperienceOpen}
         mode="create"
-        createVoiceId={createPersonalityVoiceId}
-        createVoiceName={createPersonalityVoiceName}
-        onClose={() => setCreatePersonalityOpen(false)}
+        experienceType={createExperienceType}
+        createVoiceId={createExperienceVoiceId}
+        createVoiceName={createExperienceVoiceName}
+        onClose={() => setCreateExperienceOpen(false)}
         onSuccess={async () => {
-          setCreatePersonalityOpen(false);
+          setCreateExperienceOpen(false);
           navigate('/');
         }}
       />
@@ -219,12 +251,13 @@ export const VoicesPage = () => {
               <div className="shrink-0 pt-1">
                 <div className="flex flex-col items-end gap-2">
                   <button
+                    disabled={!isDownloaded(v.voice_id)}
                     type="button"
                     className="retro-btn"
                     onClick={() => {
-                      setCreatePersonalityVoiceId(String(v.voice_id));
-                      setCreatePersonalityVoiceName(String(v.voice_name || v.voice_id));
-                      setCreatePersonalityOpen(true);
+                      setCreateExperienceVoiceId(String(v.voice_id));
+                      setCreateExperienceVoiceName(String(v.voice_name || v.voice_id));
+                      setCreateStartOpen(true);
                     }}
                   >
                     <span className="inline-flex items-center gap-2">
@@ -233,7 +266,7 @@ export const VoicesPage = () => {
                   </button>
                   <VoiceActionButtons
                     voiceId={String(v.voice_id)}
-                    isDownloaded={downloadedVoiceIds.has(String(v.voice_id))}
+                    isDownloaded={isDownloaded((v.voice_id))}
                     downloadingVoiceId={downloadingVoiceId}
                     onDownload={(id) => downloadVoice(id)}
                     onTogglePlay={(id) => togglePlay(id)}

@@ -183,7 +183,7 @@ export function ExperienceModal({
             {error && <div className="font-mono text-sm text-red-600 mb-2">{error}</div>}
             
             <div className="flex flex-col items-center gap-2 mb-6">
-                <div className="rounded-full border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+                <div className="rounded-full">
                      <img src={logoPng} alt="" className="w-10 h-10" />
                 </div>
                 <h3 className="font-black text-2xl uppercase mt-2">Create Your {labels.singular}</h3>

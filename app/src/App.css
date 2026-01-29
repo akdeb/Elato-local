@@ -102,7 +102,7 @@
     background-color: var(--color-retro-yellow);
     color: #111827;
     font-weight: 900;
-    text-transform: uppercase;
+    /* text-transform: uppercase; */
     letter-spacing: 0.04em;
     border: none;
     border-radius: 16px;
@@ -139,6 +139,18 @@
   .retro-btn:hover {
     transform: translateY(-2px);
     box-shadow: 0 8px 0 var(--shadow-color, #c58a00);
+  }
+
+  .retro-btn:disabled,
+  .retro-btn[disabled] {
+    opacity: 0.45;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .retro-btn:disabled:hover,
+  .retro-btn[disabled]:hover {
+    transform: none;
   }
 
 

@@ -128,7 +128,7 @@ export function UserModal({ open, mode, user, onClose, onSuccess }: UserModalPro
             >
               <EmojiAvatar emoji={avatarEmoji} size={28} />
             </button>
-            <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-white border border-gray-200 flex items-center justify-center text-[10px]">
+            <div onClick={() => setShowPicker((v) => !v)} className="absolute -bottom-1 -right-1 w-6 h-6 cursor-pointer rounded-full flex items-center justify-center text-[10px]">
               <Pencil size={12} className="text-gray-600" />
             </div>
             {showPicker && (

@@ -40,8 +40,8 @@ export const TestPage = () => {
 
   return (
     <div>
-      <div className="sticky top-0 z-10 bg-white border-b border-gray-100 pb-6">
-        <div className="flex justify-between items-start gap-8 pt-4">
+      <div className="sticky top-0 z-10 bg-white border-b border-gray-100 pb-4">
+        <div className="flex justify-between items-start gap-6 pt-3">
           <div>
             <h2 className="text-3xl font-black">LIVE</h2>
             <div className="mt-2 font-mono text-xs text-gray-600">
@@ -59,13 +59,13 @@ export const TestPage = () => {
             {voiceWs.error && <div className="mt-3 font-mono text-xs text-red-700">{voiceWs.error}</div>}
           </div>
 
-          <div className="flex flex-col items-center">
+        <div className="flex flex-col items-center">
             <div
               className="rounded-full shadow-[0_14px_30px_rgba(0,0,0,0.18)] transition-shadow"
               aria-hidden
               style={{
-                width: 148,
-                height: 148,
+              width: 96,
+              height: 96,
                 transform: `scale(${orbScale})`,
                 transition: "transform 80ms linear",
                 opacity: voiceWs.status === "connected" ? 1 : 0.7,
@@ -83,7 +83,7 @@ export const TestPage = () => {
               )}
             </div>
 
-            <div className="mt-4 font-mono text-xs text-gray-600 text-center">
+            <div className="mt-3 font-mono text-xs text-gray-600 text-center">
               {voiceWs.status === "connecting" && "Connecting…"}
               {voiceWs.status === "error" && "WebSocket error"}
               {voiceWs.status === "disconnected" && "Disconnected"}
@@ -93,8 +93,8 @@ export const TestPage = () => {
         </div>
       </div>
 
-      <div className="space-y-3 pt-8">
-        <ChatTranscript messages={voiceWs.transcript} isLive autoScroll />
+      <div className="space-y-3 pt-6">
+        <ChatTranscript messages={voiceWs.transcript} isLive autoScroll scrollMarginTop={140} />
       </div>
     </div>
   );

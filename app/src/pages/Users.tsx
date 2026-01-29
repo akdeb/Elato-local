@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
-import { Pencil } from 'lucide-react';
+import { Pencil, Plus } from 'lucide-react';
 import { AddUserModal } from '../components/AddUserModal';
 import { EditUserModal } from '../components/EditUserModal';
 import { useActiveUser } from '../state/ActiveUserContext';
@@ -13,7 +13,7 @@ export const UsersPage = () => {
   const [addOpen, setAddOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<any | null>(null);
-  const { refreshUsers, setActiveUserId } = useActiveUser();
+  const { refreshUsers, setActiveUserId, activeUserId } = useActiveUser();
 
   useEffect(() => {
     let cancelled = false;
@@ -38,10 +38,10 @@ export const UsersPage = () => {
 
   return (
     <div>
-      <div className="flex items-center  gap-4 mb-8">
+      <div className="flex items-center justify-between gap-4 mb-8">
         <h2 className="text-3xl font-black">MEMBERS</h2>
-        <button className="retro-btn" onClick={() => setAddOpen(true)}>
-          + Add
+        <button className="retro-btn retro-btn-outline" onClick={() => setAddOpen(true)}>
+          <Plus size={16} /> Add
         </button>
       </div>
 
@@ -87,13 +87,30 @@ export const UsersPage = () => {
       )}
 
       <div className="grid grid-cols-1 gap-4">
-        {users.map((u) => (
-          <div key={u.id} className="retro-card relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        {users.map((u) => {
+          const isActive = activeUserId === u.id;
+          return (
+          <div
+            key={u.id}
+            role="button"
+            tabIndex={0}
+            onClick={() => setActiveUserId(u.id)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setActiveUserId(u.id);
+              }
+            }}
+            className={`retro-card relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 cursor-pointer transition-shadow ${
+              isActive ? 'retro-selected' : 'retro-not-selected'
+            }`}
+          >
             <button
               type="button"
               className="retro-icon-btn absolute top-3 right-3"
               aria-label="Edit user"
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
                 setEditingUser(u);
                 setEditOpen(true);
               }}
@@ -107,6 +124,11 @@ export const UsersPage = () => {
               <div>
                 <h3 className="text-xl font-bold flex items-center gap-2">
                   {u.name}
+                  {isActive && (
+                    <span className="text-xs bg-[#9b5cff] text-white px-2 py-0.5 uppercase">
+                      Active
+                    </span>
+                  )}
                   <span className="text-xs bg-black text-white px-2 py-0.5 uppercase">
                     {u.user_type || 'family'}
                   </span>
@@ -126,7 +148,7 @@ export const UsersPage = () => {
               </div>
             </div>
           </div>
-        ))}
+        )})}
       </div>
     </div>
   );

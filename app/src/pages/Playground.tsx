@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
-import { Image as ImageIcon, Pencil, Trash2, MessageCircle, Gamepad2, BookOpen, Dices } from 'lucide-react';
+import { Image as ImageIcon, Pencil, Trash2, MessageCircle, BookOpen, Dices } from 'lucide-react';
 import { useActiveUser } from '../state/ActiveUserContext';
 import { ExperienceModal, ExperienceForModal } from '../components/ExperienceModal';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -107,6 +107,11 @@ export const Playground = () => {
   }, [activeTab]);
 
   useEffect(() => {
+    const tab = (searchParams.get('tab') as ExperienceType) || 'personality';
+    if (tab !== activeTab) setActiveTab(tab);
+  }, [searchParams, activeTab]);
+
+  useEffect(() => {
     const focusId = searchParams.get('focus');
     if (!focusId || loading) return;
     const el = document.getElementById(`experience-${focusId}`);
@@ -114,6 +119,17 @@ export const Playground = () => {
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   }, [searchParams, experiences, loading]);
+
+  useEffect(() => {
+    const create = searchParams.get('create');
+    if (!create) return;
+    setModalMode('create');
+    setSelectedExperience(null);
+    setModalOpen(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete('create');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   useEffect(() => {
     let cancelled = false;
@@ -270,16 +286,6 @@ export const Playground = () => {
         </div>
       </div>
 
-      <div className="flex justify-between items-center mb-8">
-        <h2 className="text-3xl font-black">{getTabTitle()}</h2>
-        <button 
-          className="retro-btn"
-          onClick={handleCreate}
-        >
-          + Create
-        </button>
-      </div>
-
       <ExperienceModal 
         open={modalOpen}
         mode={modalMode}
@@ -303,7 +309,7 @@ export const Playground = () => {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {sortedExperiences.map((p) => (
           <div
             key={p.id}

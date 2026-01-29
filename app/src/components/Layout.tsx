@@ -4,7 +4,8 @@ import { useActiveUser } from '../state/ActiveUserContext';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useEffect, useState } from 'react';
-import { Bot, ShieldCheck, Sparkles, X, RefreshCw } from 'lucide-react';
+import { Bot, Sparkles, X, RefreshCw } from 'lucide-react';
+import { convertFileSrc } from '@tauri-apps/api/core';
 import { VoiceWsProvider, useVoiceWs } from '../state/VoiceWsContext';
 
 const LayoutInner = () => {
@@ -12,6 +13,7 @@ const LayoutInner = () => {
   const navigate = useNavigate();
   const voiceWs = useVoiceWs();
   const [activePersonalityName, setActivePersonalityName] = useState<string | null>(null);
+  const [activePersonalityImageSrc, setActivePersonalityImageSrc] = useState<string | null>(null);
   const [activeVoiceId, setActiveVoiceId] = useState<string | null>(null);
   const [deviceConnected, setDeviceConnected] = useState<boolean>(false);
   const [deviceSessionId, setDeviceSessionId] = useState<string | null>(null);
@@ -21,6 +23,20 @@ const LayoutInner = () => {
   // Network monitoring
   const [initialIp, setInitialIp] = useState<string | null>(null);
   const [showNetworkBanner, setShowNetworkBanner] = useState(false);
+
+  const GLOBAL_PERSONALITY_IMAGE_BASE_URL = 'https://pub-a64cd21521e44c81a85db631f1cdaacc.r2.dev';
+
+  const personalityImageSrc = (p: any) => {
+    if (!p) return null;
+    if (p?.is_global) {
+      const pid = p?.id != null ? String(p.id) : '';
+      return pid ? `${GLOBAL_PERSONALITY_IMAGE_BASE_URL}/${encodeURIComponent(pid)}.png` : null;
+    }
+    const src = typeof p?.img_src === 'string' ? p.img_src.trim() : '';
+    if (!src) return null;
+    if (/^https?:\/\//i.test(src)) return src;
+    return convertFileSrc(src);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -77,9 +93,11 @@ const LayoutInner = () => {
         if (!cancelled) {
           setActivePersonalityName(selected?.name || null);
           setActiveVoiceId(selected?.voice_id ? String(selected.voice_id) : null);
+          setActivePersonalityImageSrc(personalityImageSrc(selected));
         }
       } catch {
         // ignore
+        if (!cancelled) setActivePersonalityImageSrc(null);
       }
     };
 
@@ -175,16 +193,17 @@ const LayoutInner = () => {
           <div className="fixed bottom-0 z-20 left-64 right-0 pointer-events-none">
             <div className="max-w-4xl mx-auto px-8 pb-6 pointer-events-auto">
               <div className="bg-white border border-gray-200 rounded-full px-5 py-4 flex items-center justify-between shadow-[0_12px_24px_rgba(0,0,0,0.08)]">
-                <div className="min-w-0">
-                  <div className="flex items-center flex-row gap-3">
-                    <div className="font-mono text-xs text-gray-500">Active</div>
-                  </div>
-                  <div className="mt-0.5 flex items-center gap-3 min-w-0">
-                    <div className="font-black text-base text-black truncate">{activePersonalityName || '—'}</div>
-                    <div className="inline-flex items-center gap-2 font-mono text-[11px] shrink-0">
+                <div className="min-w-0 flex items-center gap-4">
+                  {activePersonalityImageSrc && <div className="w-12 h-12 rounded-full overflow-hidden bg-white border border-gray-200">
+                    <img src={activePersonalityImageSrc} alt="" className="w-full h-full object-cover" />
+                  </div>}
+                  <div className="min-w-0">
+                    <div className="font-mono text-xs text-gray-500 flex items-center gap-2">
+                      <span>Active</span>
                       <span className={`w-2 h-2 rounded-full border border-gray-300 ${statusDotClass} ${sessionActive ? 'retro-blink' : ''}`} />
                       <span className={statusTextClass}>{statusLabel}</span>
                     </div>
+                    <div className="mt-1 font-black text-base text-black truncate">{activePersonalityName || '—'}</div>
                   </div>
                 </div>
 

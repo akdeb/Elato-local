@@ -177,11 +177,22 @@ export const Settings = () => {
         
         {/* LLM Section */}
         <div className="space-y-4">
-          <div className="flex flex-col">
-            <div className="flex items-center gap-2 mb-2">
+          <div className="flex flex-col relative">
+<div className="flex items-center justify-between">
+<div className="flex items-center gap-2 mb-2">
             <Brain className="w-5 h-5" />
             <h3 className="font-bold uppercase text-lg">Language Model (LLM)</h3>
             </div>
+<button 
+                onClick={handleSaveModel}
+                disabled={showSwitchModal || loading || !llmRepo || llmRepo === models?.llm.repo}
+                className="absolute top-0 right-0 retro-btn retro-btn-outline text-gray-900 disabled:opacity-50 flex items-center gap-2"
+              >
+                <Rss className="w-4 h-4" />
+                Update
+              </button>
+</div>
+            
             <label className="font-bold mb-2 uppercase text-xs opacity-40">
               Hugging Face Repository
             </label>
@@ -196,14 +207,7 @@ export const Settings = () => {
                   label=""
                 />
               </div>
-              <button 
-                onClick={handleSaveModel}
-                disabled={showSwitchModal || loading || !llmRepo || llmRepo === models?.llm.repo}
-                className="retro-btn retro-btn-outline text-gray-900 disabled:opacity-50 flex items-center gap-2"
-              >
-                <Rss className="w-4 h-4" />
-                Update
-              </button>
+ 
             </div>
             <p className="text-[10px] mt-2 opacity-60">
               {models?.llm.loaded ? (

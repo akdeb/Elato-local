@@ -11,6 +11,7 @@ type ChatTranscriptProps = {
   messages: ChatMessage[];
   isLive?: boolean;
   autoScroll?: boolean;
+  scrollMarginTop?: number;
   emptyLabel?: string;
   className?: string;
 };
@@ -19,6 +20,7 @@ export const ChatTranscript = ({
   messages,
   isLive = false,
   autoScroll = false,
+  scrollMarginTop = 0,
   emptyLabel = "No transcript yet",
   className = "",
 }: ChatTranscriptProps) => {
@@ -63,7 +65,7 @@ export const ChatTranscript = ({
               </div>
             );
           })}
-          <div ref={endRef} />
+          <div ref={endRef} style={scrollMarginTop ? { scrollMarginTop } : undefined} />
         </div>
       )}
 
