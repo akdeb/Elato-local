@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Users, LockKeyhole, Volume2, Settings, History, Plus, Gamepad2 } from 'lucide-react';
+import { Users, LockKeyhole, Volume2, Settings, History, Plus, Gamepad2, Home } from 'lucide-react';
 import clsx from 'clsx';
 import { useActiveUser } from '../state/ActiveUserContext';
 import { useEffect, useState } from 'react';
@@ -127,8 +127,8 @@ export const Sidebar = () => {
                   ? `/?tab=${encodeURIComponent(activeExperienceType)}&focus=${encodeURIComponent(activeExperienceId)}`
                   : "/"
               }
-              icon={Gamepad2}
-              label="Playground"
+              icon={Home}
+              label="Home"
               matchPath="/"
             />
             <NavItem to="/voices" icon={Volume2} label="Voices" />

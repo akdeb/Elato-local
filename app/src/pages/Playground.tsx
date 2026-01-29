@@ -1,18 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
-import { Image as ImageIcon, Pencil, Trash2, MessageCircle, BookOpen, Dices } from 'lucide-react';
+import { Image as ImageIcon, Pencil, Trash2, MessageCircle, BookOpen, Maximize2, Gamepad2 } from 'lucide-react';
 import { useActiveUser } from '../state/ActiveUserContext';
 import { ExperienceModal, ExperienceForModal } from '../components/ExperienceModal';
 import { Link, useSearchParams } from 'react-router-dom';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { VoiceActionButtons } from '../components/VoiceActionButtons';
 import { useVoicePlayback } from '../hooks/useVoicePlayback';
+import { Modal } from '../components/Modal';
 
 type ExperienceType = 'personality' | 'game' | 'story';
 
 const TAB_CONFIG: { id: ExperienceType; label: string; icon: typeof MessageCircle }[] = [
   { id: 'story', label: 'Stories', icon: BookOpen },
-  { id: 'game', label: 'Games', icon: Dices },
+  { id: 'game', label: 'Games', icon: Gamepad2 },
   { id: 'personality', label: 'Chat', icon: MessageCircle },
 ];
 
@@ -45,6 +46,8 @@ export const Playground = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
   const [selectedExperience, setSelectedExperience] = useState<ExperienceForModal | null>(null);
+  const [infoOpen, setInfoOpen] = useState(false);
+  const [infoExperience, setInfoExperience] = useState<any | null>(null);
 
   const { activeUserId, activeUser, refreshUsers } = useActiveUser();
 
@@ -233,12 +236,6 @@ export const Playground = () => {
     }
   };
 
-  const handleCreate = () => {
-    setModalMode('create');
-    setSelectedExperience(null);
-    setModalOpen(true);
-  };
-
   const handleEdit = (p: any, e: React.MouseEvent) => {
     e.stopPropagation();
     setModalMode('edit');
@@ -251,21 +248,12 @@ export const Playground = () => {
     setSearchParams({ tab });
   };
 
-  const getTabTitle = () => {
-    switch (activeTab) {
-      case 'personality': return 'CHAT';
-      case 'story': return 'STORIES';
-      case 'game': return 'GAMES';
-      default: return 'PLAYGROUND';
-    }
-  };
-
   return (
     <div>
       {/* Floating Tab Bar */}
       <div className="sticky top-0 z-20 -mx-8 px-8 pt-2 pb-4 bg-transparent">
         <div className="flex justify-center">
-          <div className="inline-flex bg-gray-100 rounded-full p-1 shadow-[0_6px_0_rgba(0,0,0,0.28)]">
+          <div className="inline-flex bg-gray-100 rounded-full p-1 shadow-[0_6px_0_rgba(210,210,210,1)]">
             {TAB_CONFIG.map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -299,6 +287,51 @@ export const Playground = () => {
         }}
       />
 
+      <Modal
+        open={infoOpen}
+        title={infoExperience?.name || '—'}
+        onClose={() => {
+          setInfoOpen(false);
+          setInfoExperience(null);
+        }}
+        panelClassName="w-full max-w-2xl"
+      >
+        <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
+          <div className="w-full h-[200px] rounded-[24px] border bg-orange-50/50 border-gray-200 flex items-center justify-center overflow-hidden" 
+style={{
+                            backgroundImage: `radial-gradient(circle, rgba(0,0,0,0.08) 1px, transparent 1px)`,
+                            backgroundSize: '6px 6px'
+                        }}>
+            {infoExperience && imgSrcFor(infoExperience) && !brokenImgById[String(infoExperience.id)] ? (
+              <img
+                src={imgSrcFor(infoExperience) || ''}
+                alt=""
+                className="h-auto w-auto max-h-full max-w-[80%] object-contain object-center"
+                onError={() => {
+                  setBrokenImgById((prev) => ({ ...prev, [String(infoExperience.id)]: true }));
+                }}
+              />
+            ) : (
+              <ImageIcon size={22} className="text-gray-500" />
+            )}
+          </div>
+          <div>
+            <div className="text-xs font-bold uppercase tracking-wider text-gray-500">About</div>
+            <div className="text-sm text-gray-700 whitespace-pre-wrap">
+              {infoExperience?.short_description || '—'}
+            </div>
+          </div>
+          <div>
+            <div className="text-xs font-bold uppercase tracking-wider text-gray-500">Voice</div>
+            <div className="text-sm text-gray-900">
+              {infoExperience?.voice_id
+                ? voiceById.get(String(infoExperience.voice_id))?.voice_name || infoExperience.voice_id
+                : '—'}
+            </div>
+          </div>
+        </div>
+      </Modal>
+
       {loading && (
         <div className="retro-card font-mono text-sm">Loading…</div>
       )}
@@ -328,6 +361,19 @@ style={{
 }}
           >
             <div className="absolute top-2 right-2 flex flex-col items-center gap-2 z-10">
+              <button
+                type="button"
+                className="retro-icon-btn"
+                aria-label="Details"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setInfoExperience(p);
+                  setInfoOpen(true);
+                }}
+                title="Details"
+              >
+                <Maximize2 size={16} />
+              </button>
               {!p.is_global && (
                 <button
                   type="button"
@@ -415,7 +461,8 @@ style={{
                     />
                   </label>
                 ) : (
-                  <div className="w-full h-[160px] rounded-t-[24px] bg-orange-50/50 flex items-center justify-center overflow-hidden"                         style={{
+                  <div className="w-full h-[160px] rounded-t-[24px] bg-orange-50/50 flex items-center justify-center overflow-hidden"                         
+style={{
                             backgroundImage: `radial-gradient(circle, rgba(0,0,0,0.08) 1px, transparent 1px)`,
                             backgroundSize: '6px 6px'
                         }}>

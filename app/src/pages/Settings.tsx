@@ -227,7 +227,7 @@ export const Settings = () => {
             Flash Firmware
           </h3>
           <div className="font-bold uppercase text-xs opacity-40">
-              <div>Connect your ESP32-S3 device</div>
+              <div>Connect your ESP32 device</div>
             </div>
 
             </div>

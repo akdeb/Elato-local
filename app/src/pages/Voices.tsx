@@ -231,7 +231,7 @@ export const VoicesPage = () => {
           >
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
-                <h3 className="text-lg font-black inline-flex items-center gap-2">
+                <h3 className="text-md font-black inline-flex items-center gap-2">
                   <span>{v.voice_name || v.voice_id}</span>
                   {/* <span
                     className="inline-flex items-center justify-center align-middle"
@@ -243,7 +243,7 @@ export const VoicesPage = () => {
                   </span> */}
                 </h3>
                 
-                <p className="text-gray-600 text-sm font-medium mt-1">
+                <p className="text-gray-600 text-xs font-medium mt-2">
                   {v.voice_description ? v.voice_description : "—"}
                 </p>
               </div>
@@ -253,7 +253,7 @@ export const VoicesPage = () => {
                   <button
                     disabled={!isDownloaded(v.voice_id)}
                     type="button"
-                    className="retro-btn"
+                    className="retro-btn retro-btn-sm"
                     onClick={() => {
                       setCreateExperienceVoiceId(String(v.voice_id));
                       setCreateExperienceVoiceName(String(v.voice_name || v.voice_id));
@@ -272,6 +272,7 @@ export const VoicesPage = () => {
                     onTogglePlay={(id) => togglePlay(id)}
                     isPlaying={playingVoiceId === String(v.voice_id)}
                     isPaused={isPaused}
+                    size="small"
                   />
                 </div>
               </div>

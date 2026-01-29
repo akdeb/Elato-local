@@ -67,7 +67,7 @@ const LayoutInner = () => {
 
   const sessionActive = deviceConnected || voiceWs.isActive;
 
-  const statusLabel = sessionActive ? 'Chat in progress' : 'Ready to connect';
+  const statusLabel = sessionActive ? 'Chat in progress' : 'Ready on device';
   const statusDotClass = sessionActive ? 'bg-emerald-500' : 'bg-green-400';
   const statusTextClass = sessionActive ? 'text-emerald-700' : 'text-gray-600';
 
@@ -212,7 +212,6 @@ const LayoutInner = () => {
                   )}
                   <div className="min-w-0">
                     <div className="font-mono text-xs text-gray-500 flex items-center gap-2">
-                      <span>Active</span>
                       <span className={`w-2 h-2 rounded-full border border-gray-300 ${statusDotClass} ${sessionActive ? 'retro-blink' : ''}`} />
                       <span className={statusTextClass}>{statusLabel}</span>
                     </div>
