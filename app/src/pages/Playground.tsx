@@ -263,26 +263,28 @@ export const Playground = () => {
   return (
     <div>
       {/* Floating Tab Bar */}
-      <div className="flex justify-center mb-6">
-        <div className="inline-flex bg-gray-100 rounded-full p-1 shadow-[0_6px_0_rgba(0,0,0,0.12)]">
-          {TAB_CONFIG.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => handleTabChange(tab.id)}
-                className={`flex items-center gap-2 px-5 py-2 rounded-full font-black uppercase tracking-wide transition-all ${
-                  isActive
-                    ? 'bg-white text-gray-900'
-                    : 'bg-transparent text-gray-500 hover:bg-white'
-                }`}
-              >
-                <Icon size={18} />
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
+      <div className="sticky top-0 z-20 -mx-8 px-8 pt-2 pb-4 bg-transparent">
+        <div className="flex justify-center">
+          <div className="inline-flex bg-gray-100 rounded-full p-1 shadow-[0_6px_0_rgba(0,0,0,0.28)]">
+            {TAB_CONFIG.map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => handleTabChange(tab.id)}
+                  className={`flex items-center gap-2 px-5 py-2 rounded-full font-black uppercase tracking-wide transition-all ${
+                    isActive
+                      ? 'bg-white text-gray-900'
+                      : 'bg-transparent text-gray-500 hover:bg-white'
+                  }`}
+                >
+                  <Icon size={18} />
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
@@ -309,7 +311,7 @@ export const Playground = () => {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-8">
         {sortedExperiences.map((p) => (
           <div
             key={p.id}

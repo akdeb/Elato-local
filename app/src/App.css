@@ -159,6 +159,17 @@
     box-shadow: 0 8px 0 #aaa;
   }
 
+  .retro-btn.no-lift:hover {
+    transform: none;
+    box-shadow: 0 6px 0 var(--shadow-color, #c58a00);
+  }
+
+
+.retro-btn-outline.no-lift:hover {
+  transform: none;
+  box-shadow: 0 6px 0 #d1d5db;
+}
+
   .retro-btn-dangerous-outline {
     background-color: #fff1f2;
     color: #9f1239;
@@ -172,11 +183,6 @@
 
   .retro-btn-dangerous-outline:active {
     filter: brightness(0.95);
-  }
-
-  .retro-btn.no-lift:hover {
-    transform: none;
-    box-shadow: 0 6px 0 var(--shadow-color, #c58a00);
   }
 
   .retro-btn:active {

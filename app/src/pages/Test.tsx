@@ -39,9 +39,9 @@ export const TestPage = () => {
   }, [voiceWs.isRecording, voiceWs.isPaused, voiceWs.micLevel, voiceWs.isSpeaking]);
 
   return (
-    <div>
-      <div className="sticky top-0 z-10 bg-white border-b border-gray-100 pb-4">
-        <div className="flex justify-between items-start gap-6 pt-3">
+    <div className="-mt-8">
+      <div className="sticky top-0 z-30 bg-white border-b border-gray-100 px-8 pt-8 pb-4">
+        <div className="flex justify-between items-start gap-6">
           <div>
             <h2 className="text-3xl font-black">LIVE</h2>
             <div className="mt-2 font-mono text-xs text-gray-600">
@@ -94,7 +94,7 @@ export const TestPage = () => {
       </div>
 
       <div className="space-y-3 pt-6">
-        <ChatTranscript messages={voiceWs.transcript} isLive autoScroll scrollMarginTop={140} />
+        <ChatTranscript messages={voiceWs.transcript} isLive autoScroll scrollMarginTop={200} />
       </div>
     </div>
   );

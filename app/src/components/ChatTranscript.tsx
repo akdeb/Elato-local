@@ -25,11 +25,18 @@ export const ChatTranscript = ({
   className = "",
 }: ChatTranscriptProps) => {
   const endRef = useRef<HTMLDivElement | null>(null);
+  const lastAiRef = useRef<HTMLDivElement | null>(null);
+
+  const lastAiId = [...messages].reverse().find((m) => m.role === "ai")?.id;
 
   useEffect(() => {
     if (!autoScroll) return;
+    if (lastAiRef.current) {
+      lastAiRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [autoScroll, messages.length]);
+  }, [autoScroll, messages.length, lastAiId]);
 
   return (
     <div className={`bg-transparent border-0 shadow-none rounded-none ${className}`}>
@@ -39,8 +46,14 @@ export const ChatTranscript = ({
         <div className="p-4 space-y-3">
           {messages.map((entry) => {
             const isAi = entry.role === "ai";
+            const isLastAi = isAi && entry.id === lastAiId;
             return (
-              <div key={entry.id} className={`flex ${isAi ? "justify-start" : "justify-end"}`}>
+              <div
+                key={entry.id}
+                ref={isLastAi ? lastAiRef : undefined}
+                style={isLastAi && scrollMarginTop ? { scrollMarginTop } : undefined}
+                className={`flex ${isAi ? "justify-start" : "justify-end"}`}
+              >
                 <div
                   className={`max-w-[78%] rounded-2xl px-4 py-3 ${
                     isAi ? "bg-[#f0f0f0] text-gray-900" : "bg-purple-400 text-white"

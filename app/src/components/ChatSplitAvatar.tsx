@@ -51,13 +51,13 @@ export const ChatSplitAvatar = ({
 
       <div
         className="absolute inset-0 flex items-start justify-start"
-        style={{ clipPath: "polygon(0 0, 100% 0, 0 100%)" }}
+        style={{ clipPath: "polygon(0 0, 54% 0, 46% 100%, 0 100%)" }}
       >
         {characterImageSrc && !imgError ? (
           <img
             src={characterImageSrc}
             alt=""
-            className="w-full h-full object-cover object-left"
+            className="w-full h-full object-contain object-left"
             onError={() => setImgError(true)}
           />
         ) : (
@@ -68,7 +68,7 @@ export const ChatSplitAvatar = ({
             type="button"
             onClick={onCharacterClick}
             className="absolute inset-0"
-            style={{ clipPath: "polygon(0 0, 100% 0, 0 100%)" }}
+            style={{ clipPath: "polygon(0 0, 54% 0, 46% 100%, 0 100%)" }}
             aria-label="Open character"
           />
         )}
@@ -76,7 +76,7 @@ export const ChatSplitAvatar = ({
 
       <div
         className="absolute inset-0 flex items-end justify-end text-lg pr-1 pb-1"
-        style={{ clipPath: "polygon(100% 0, 100% 100%, 0 100%)" }}
+        style={{ clipPath: "polygon(54% 0, 100% 0, 100% 100%, 46% 100%)" }}
       >
         <EmojiAvatar
           emoji={emoji}

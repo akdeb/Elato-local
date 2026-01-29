@@ -119,8 +119,9 @@ export function ExperienceModal({
     setSubmitting(true);
     setError(null);
     try {
+      const descriptionWithFormatGuard = `${description.trim()}\n\nReturn plain text only. Do not use markdown or asterisks.`;
       await api.generateExperience(
-        description.trim(),
+        descriptionWithFormatGuard,
         experienceType,
         createVoiceId || undefined
       );
@@ -210,7 +211,7 @@ export function ExperienceModal({
                 <button 
                     onClick={submitCreate}
                     disabled={submitting || !description.trim()}
-                    className={`absolute bottom-3 right-3 w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed ${(!submitting && !!description.trim()) ? 'cursor-pointer bg-[#9b5cff] text-white border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:brightness-105 hover:scale-[1.03] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:scale-[0.98] active:translate-x-[0px] active:translate-y-[0px] active:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 focus-visible:ring-offset-white' : 'bg-gray-200 text-gray-700 border-transparent hover:border-black'}`}
+                    className={`absolute bottom-3 right-3 w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed ${(!submitting && !!description.trim()) ? 'cursor-pointer bg-[#9b5cff] text-white border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:brightness-105 hover:scale-[1.03] hover:-translate-x-px hover:-translate-y-px hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:scale-[0.98] active:translate-x-0 active:translate-y-0 active:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 focus-visible:ring-offset-white' : 'bg-gray-200 text-gray-700 border-transparent hover:border-black'}`}
                 >
                     {submitting ? (
                         <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />

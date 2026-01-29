@@ -194,7 +194,7 @@ export function UserModal({ open, mode, user, onClose, onSuccess }: UserModalPro
 
         <div className="flex justify-end">
           <button className="retro-btn" type="button" onClick={submit} disabled={submitting}>
-            {mode === "create" ? (submitting ? "Creating…" : "Create Member") : submitting ? "Saving…" : "Save"}
+            {mode === "create" ? (submitting ? "Creating…" : "+ Add") : submitting ? "Saving…" : "Save"}
           </button>
         </div>
       </div>

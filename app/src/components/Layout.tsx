@@ -1,19 +1,21 @@
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { useActiveUser } from '../state/ActiveUserContext';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useEffect, useState } from 'react';
-import { Bot, Sparkles, X, RefreshCw } from 'lucide-react';
+import { Bot, X, RefreshCw } from 'lucide-react';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { VoiceWsProvider, useVoiceWs } from '../state/VoiceWsContext';
 
 const LayoutInner = () => {
   const { activeUser } = useActiveUser();
+  const location = useLocation();
   const navigate = useNavigate();
   const voiceWs = useVoiceWs();
   const [activePersonalityName, setActivePersonalityName] = useState<string | null>(null);
   const [activePersonalityImageSrc, setActivePersonalityImageSrc] = useState<string | null>(null);
+  const [activePersonalityImageError, setActivePersonalityImageError] = useState(false);
   const [activeVoiceId, setActiveVoiceId] = useState<string | null>(null);
   const [deviceConnected, setDeviceConnected] = useState<boolean>(false);
   const [deviceSessionId, setDeviceSessionId] = useState<string | null>(null);
@@ -94,10 +96,14 @@ const LayoutInner = () => {
           setActivePersonalityName(selected?.name || null);
           setActiveVoiceId(selected?.voice_id ? String(selected.voice_id) : null);
           setActivePersonalityImageSrc(personalityImageSrc(selected));
+          setActivePersonalityImageError(false);
         }
       } catch {
         // ignore
-        if (!cancelled) setActivePersonalityImageSrc(null);
+        if (!cancelled) {
+          setActivePersonalityImageSrc(null);
+          setActivePersonalityImageError(false);
+        }
       }
     };
 
@@ -184,19 +190,26 @@ const LayoutInner = () => {
       )}
       <div className="flex flex-1 min-h-0 overflow-hidden">
         <Sidebar />
-        <main className="flex-1 min-h-0 p-8 pb-36 overflow-y-auto">
-        <div className="max-w-4xl mx-auto">
-          <Outlet />
-        </div>
+        <main className={`flex-1 min-h-0 overflow-y-auto ${location.pathname === '/test' ? 'p-0 pb-36' : 'p-8 pb-36'}`}>
+          <div className={`max-w-4xl mx-auto ${location.pathname === '/test' ? 'px-8 pt-0' : ''}`}>
+            <Outlet />
+          </div>
 
         {activeUser?.current_personality_id && (
           <div className="fixed bottom-0 z-20 left-64 right-0 pointer-events-none">
             <div className="max-w-4xl mx-auto px-8 pb-6 pointer-events-auto">
-              <div className="bg-white border border-gray-200 rounded-full px-5 py-4 flex items-center justify-between shadow-[0_12px_24px_rgba(0,0,0,0.08)]">
+              <div className="bg-white border border-gray-200 rounded-full px-5 py-4 flex items-center justify-between shadow-xl">
                 <div className="min-w-0 flex items-center gap-4">
-                  {activePersonalityImageSrc && <div className="w-12 h-12 rounded-full overflow-hidden bg-white border border-gray-200">
-                    <img src={activePersonalityImageSrc} alt="" className="w-full h-full object-cover" />
-                  </div>}
+                  {activePersonalityImageSrc && !activePersonalityImageError && (
+                    <div className="w-12 h-12 rounded-full overflow-hidden bg-white border border-gray-200">
+                      <img
+                        src={activePersonalityImageSrc}
+                        alt=""
+                        className="w-full h-full object-cover"
+                        onError={() => setActivePersonalityImageError(true)}
+                      />
+                    </div>
+                  )}
                   <div className="min-w-0">
                     <div className="font-mono text-xs text-gray-500 flex items-center gap-2">
                       <span>Active</span>
@@ -209,55 +222,52 @@ const LayoutInner = () => {
 
                 <div className="flex items-center gap-3">
                   <div className="flex flex-col items-end">
-                    <button
-                      type="button"
-                      className={`retro-btn no-lift ${sessionActive ? 'retro-btn-green' : '' } px-4 py-2 text-sm flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed`}
-                      onClick={() => {
-                        if (!canStartChat) return;
-                        navigate('/test');
-                        if (!sessionActive) {
+                    {!sessionActive && !deviceConnected && (
+                      <button
+                        type="button"
+                        className="retro-btn no-lift px-4 py-2 text-sm flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                        onClick={() => {
+                          if (!canStartChat) return;
+                          navigate('/test');
                           voiceWs.connect();
-                        }
-                      }}
-                      disabled={!canStartChat}
-                    >
-                    {sessionActive ? <Sparkles fill='currentColor' size={18} className="shrink-0" /> : <Bot size={18} className="shrink-0" />}
-                    {sessionActive ? 'View' : 'Play'}
-                    </button>
-                    {!canStartChat && (
+                        }}
+                        disabled={!canStartChat}
+                      >
+                        <Bot size={18} className="shrink-0" /> Preview
+                      </button>
+                    )}
+                    {!sessionActive && deviceConnected && deviceSessionId && (
+                      <button
+                        type="button"
+                        className="retro-btn no-lift px-4 py-2 text-sm flex items-center gap-2"
+                        onClick={() => navigate('/test')}
+                      >
+                        <Bot size={18} className="shrink-0" /> View
+                      </button>
+                    )}
+                    {sessionActive && (
+                      <button
+                        type="button"
+                        className="retro-btn retro-btn-outline no-lift px-4 py-2 text-sm flex items-center gap-2"
+                        onClick={() => {
+                          voiceWs.disconnect();
+                          const sid = voiceWs.latestSessionId;
+                          if (sid) {
+                            navigate(`/conversations?session=${encodeURIComponent(sid)}`);
+                          } else {
+                            navigate('/conversations');
+                          }
+                        }}
+                      >
+                        <X size={18} className="shrink-0" /> End
+                      </button>
+                    )}
+                    {!canStartChat && !sessionActive && !deviceConnected && (
                       <div className="mt-1 font-mono text-xs text-gray-500">
                         Download voice to start chat
                       </div>
                     )}
                   </div>
-
-                  {sessionActive && (
-                    <button
-                      // type="button"
-                      className="retro-btn retro-btn-outline no-lift px-4 py-2 text-sm flex items-center gap-2 disabled:opacity-60"
-                      onClick={() => {
-                        voiceWs.disconnect();
-                        const sid = voiceWs.latestSessionId;
-                        if (sid) {
-                          navigate(`/conversations?session=${encodeURIComponent(sid)}`);
-                        } else {
-                          navigate('/conversations');
-                        }
-                      }}
-                      disabled={!sessionActive}
-                    >
-                      <X size={18} className="shrink-0" /> End
-                    </button>
-                  )}
-                  {deviceConnected && deviceSessionId && (
-                    <button
-                      type="button"
-                      className="retro-btn bg-white no-lift px-4 py-2 text-sm"
-                      onClick={() => navigate(`/conversations?session=${encodeURIComponent(deviceSessionId)}`)}
-                    >
-                      View
-                    </button>
-                  )}
                 </div>
               </div>
             </div>
