@@ -252,6 +252,11 @@ export const api = {
       body: JSON.stringify(data),
     });
   },
+  disconnectDevice: async () => {
+    return request(`/device/disconnect`, {
+      method: "POST",
+    });
+  },
 
   getModels: async () => {
     return request(`/models`);

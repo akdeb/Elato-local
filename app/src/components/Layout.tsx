@@ -65,7 +65,10 @@ const LayoutInner = () => {
     };
   }, [initialIp]);
 
-  const sessionActive = deviceConnected || voiceWs.isActive;
+  const localActive = voiceWs.isActive;
+  const sessionActive = deviceConnected || localActive;
+  const isEsp32View =
+    location.pathname === '/test' && new URLSearchParams(location.search).get('view') === 'esp32';
 
   const statusLabel = sessionActive ? 'Chat in progress' : 'Ready on device';
   const statusDotClass = sessionActive ? 'bg-emerald-500' : 'bg-green-400';
@@ -76,11 +79,9 @@ const LayoutInner = () => {
 
     const load = async () => {
       try {
-        const ds = { connected: false, session_id: null };
-        
-        // await api.getDeviceStatus().catch(() => ({ connected: false, session_id: null }));
-        if (!cancelled) {
-          setDeviceConnected(!!ds?.connected);
+        const ds = await api.getDeviceStatus().catch(() => null);
+        if (!cancelled && ds) {
+          setDeviceConnected(ds?.ws_status === 'connected');
           setDeviceSessionId(ds?.session_id || null);
         }
 
@@ -109,6 +110,30 @@ const LayoutInner = () => {
 
     load();
   }, [activeUser?.current_personality_id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let pollTimer: number | null = null;
+    const poll = async () => {
+      try {
+        const ds = await api.getDeviceStatus().catch(() => null);
+        if (!cancelled && ds) {
+          setDeviceConnected(ds?.ws_status === 'connected');
+        }
+      } catch {
+        // ignore
+      }
+      if (!cancelled) {
+        pollTimer = window.setTimeout(poll, 2000);
+      }
+    };
+
+    void poll();
+    return () => {
+      cancelled = true;
+      if (pollTimer != null) window.clearTimeout(pollTimer);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -221,7 +246,7 @@ const LayoutInner = () => {
 
                 <div className="flex items-center gap-3">
                   <div className="flex flex-col items-end">
-                    {!sessionActive && !deviceConnected && (
+                    {!localActive && !deviceConnected && (
                       <button
                         type="button"
                         className="retro-btn retro-btn-purple no-lift px-4 py-2 text-sm flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
@@ -235,16 +260,38 @@ const LayoutInner = () => {
                         <Bot size={18} className="shrink-0" /> Preview
                       </button>
                     )}
-                    {!sessionActive && deviceConnected && deviceSessionId && (
+                    {!localActive && deviceConnected && !isEsp32View && (
                       <button
                         type="button"
-                        className="retro-btn no-lift px-4 py-2 text-sm flex items-center gap-2"
-                        onClick={() => navigate('/test')}
+                        className="retro-btn retro-btn-green no-lift px-4 py-2 text-sm flex items-center gap-2 animate-pulse"
+                        onClick={() => navigate('/test?view=esp32')}
                       >
                         <Bot size={18} className="shrink-0" /> View
                       </button>
                     )}
-                    {sessionActive && (
+                    {!localActive && deviceConnected && isEsp32View && (
+                      <button
+                        type="button"
+                        className="retro-btn retro-btn-outline no-lift px-4 py-2 text-sm flex items-center gap-2"
+                        onClick={async () => {
+                          try {
+                            await api.disconnectDevice();
+                            setDeviceConnected(false);
+                            const sid = deviceSessionId;
+                            if (sid) {
+                              navigate(`/conversations?session=${encodeURIComponent(sid)}`);
+                            } else {
+                              navigate('/conversations');
+                            }
+                          } catch {
+                            // ignore
+                          }
+                        }}
+                      >
+                        <X size={18} className="shrink-0" /> End
+                      </button>
+                    )}
+                    {localActive && (
                       <button
                         type="button"
                         className="retro-btn retro-btn-outline no-lift px-4 py-2 text-sm flex items-center gap-2"

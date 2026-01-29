@@ -1,42 +1,126 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { ChatTranscript } from "../components/ChatTranscript";
 import { useVoiceWs } from "../state/VoiceWsContext";
+import { api } from "../api";
+
+type TranscriptEntry = {
+  id: string;
+  role: "user" | "ai";
+  text: string;
+  timestamp: number;
+};
 
 export const TestPage = () => {
   const voiceWs = useVoiceWs();
   const [imageError, setImageError] = useState(false);
+  const [searchParams] = useSearchParams();
+  const viewOnly = searchParams.get("view") === "esp32";
+  const [deviceConnected, setDeviceConnected] = useState(false);
+  const [deviceSessionId, setDeviceSessionId] = useState<string | null>(null);
+  const [deviceTranscript, setDeviceTranscript] = useState<TranscriptEntry[]>([]);
 
   useEffect(() => {
+    if (viewOnly) return;
     if (!voiceWs.isActive) {
       voiceWs.connect();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [viewOnly]);
 
   useEffect(() => {
     setImageError(false);
   }, [voiceWs.characterImageSrc]);
 
+  useEffect(() => {
+    if (!viewOnly) return;
+    let cancelled = false;
+    let timer: number | null = null;
+    const poll = async () => {
+      try {
+        const ds = await api.getDeviceStatus().catch(() => null);
+        if (!cancelled && ds) {
+          setDeviceConnected(ds?.ws_status === "connected");
+          setDeviceSessionId(ds?.session_id || null);
+        }
+      } catch {
+        // ignore
+      }
+      if (!cancelled) {
+        timer = window.setTimeout(poll, 2000);
+      }
+    };
+    poll();
+    return () => {
+      cancelled = true;
+      if (timer != null) window.clearTimeout(timer);
+    };
+  }, [viewOnly]);
+
+  useEffect(() => {
+    if (!viewOnly || !deviceSessionId) {
+      setDeviceTranscript([]);
+      return;
+    }
+    let cancelled = false;
+    let timer: number | null = null;
+    const poll = async () => {
+      try {
+        const rows = await api.getConversationsBySession(deviceSessionId).catch(() => []);
+        if (!cancelled) {
+          const next = (Array.isArray(rows) ? rows : []).map((c: any) => {
+            const ts =
+              typeof c?.timestamp === "number"
+                ? c.timestamp
+                : Date.parse(c?.timestamp || "") || Date.now();
+            return {
+              id: String(c?.id ?? `${ts}-${Math.random().toString(16).slice(2)}`),
+              role: c?.role === "ai" ? "ai" : "user",
+              text: String(c?.transcript ?? ""),
+              timestamp: ts,
+            } as TranscriptEntry;
+          });
+          setDeviceTranscript(next);
+        }
+      } catch {
+        // ignore
+      }
+      if (!cancelled) {
+        timer = window.setTimeout(poll, 2000);
+      }
+    };
+    poll();
+    return () => {
+      cancelled = true;
+      if (timer != null) window.clearTimeout(timer);
+    };
+  }, [viewOnly, deviceSessionId]);
+
+  const effectiveStatus = viewOnly ? (deviceConnected ? "connected" : "disconnected") : voiceWs.status;
   const statusDotClass =
-    voiceWs.status === "connected"
+    effectiveStatus === "connected"
       ? "bg-[#00c853]"
-      : voiceWs.status === "error"
+      : effectiveStatus === "error"
         ? "bg-red-500"
         : "bg-[#ffd400]";
 
   const micStatusLabel = useMemo(() => {
+    if (viewOnly) return null;
     if (voiceWs.isSpeaking) return "speaking";
     if (!voiceWs.isRecording) return voiceWs.status === "connected" ? "waiting" : null;
     if (voiceWs.isPaused) return "processing";
     return "listening";
-  }, [voiceWs.isRecording, voiceWs.isPaused, voiceWs.isSpeaking, voiceWs.status]);
+  }, [voiceWs.isRecording, voiceWs.isPaused, voiceWs.isSpeaking, voiceWs.status, viewOnly]);
 
   const orbScale = useMemo(() => {
+    if (viewOnly) return 1;
     const base = voiceWs.isRecording ? 1.03 : 1;
     const mic = voiceWs.isRecording && !voiceWs.isPaused ? voiceWs.micLevel * 0.18 : 0;
     const speak = voiceWs.isSpeaking ? 0.08 : 0;
     return base + mic + speak;
-  }, [voiceWs.isRecording, voiceWs.isPaused, voiceWs.micLevel, voiceWs.isSpeaking]);
+  }, [voiceWs.isRecording, voiceWs.isPaused, voiceWs.micLevel, voiceWs.isSpeaking, viewOnly]);
+
+  const displayTranscript = viewOnly ? deviceTranscript : voiceWs.transcript;
 
   return (
     <div className="-mt-8">
@@ -49,14 +133,16 @@ export const TestPage = () => {
             </div>
             <div className="mt-1 font-mono text-xs text-gray-600 inline-flex items-center gap-2">
               <span className={`w-2.5 h-2.5 rounded-full border border-black ${statusDotClass}`} />
-              <span className="capitalize">{voiceWs.status}</span>
+              <span className="capitalize">{effectiveStatus}</span>
               {micStatusLabel && (
                 <span className="text-gray-500">
                   • {micStatusLabel}
                 </span>
               )}
             </div>
-            {voiceWs.error && <div className="mt-3 font-mono text-xs text-red-700">{voiceWs.error}</div>}
+            {!viewOnly && voiceWs.error && (
+              <div className="mt-3 font-mono text-xs text-red-700">{voiceWs.error}</div>
+            )}
           </div>
 
         <div className="flex flex-col items-center">
@@ -84,17 +170,17 @@ export const TestPage = () => {
             </div>
 
             <div className="mt-3 font-mono text-xs text-gray-600 text-center">
-              {voiceWs.status === "connecting" && "Connecting…"}
-              {voiceWs.status === "error" && "WebSocket error"}
-              {voiceWs.status === "disconnected" && "Disconnected"}
-              {voiceWs.status === "connected" && "Live"}
+              {effectiveStatus === "connecting" && "Connecting…"}
+              {effectiveStatus === "error" && "WebSocket error"}
+              {effectiveStatus === "disconnected" && "Disconnected"}
+              {effectiveStatus === "connected" && "Live"}
             </div>
           </div>
         </div>
       </div>
 
       <div className="space-y-3 pt-6">
-        <ChatTranscript messages={voiceWs.transcript} isLive autoScroll scrollMarginTop={200} />
+        <ChatTranscript messages={displayTranscript} isLive autoScroll scrollMarginTop={200} />
       </div>
     </div>
   );
