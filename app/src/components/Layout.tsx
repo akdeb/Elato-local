@@ -225,7 +225,7 @@ const LayoutInner = () => {
                     {!sessionActive && !deviceConnected && (
                       <button
                         type="button"
-                        className="retro-btn no-lift px-4 py-2 text-sm flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                        className="retro-btn retro-btn-purple no-lift px-4 py-2 text-sm flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
                         onClick={() => {
                           if (!canStartChat) return;
                           navigate('/test');
