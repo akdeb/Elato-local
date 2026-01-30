@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Users, LockKeyhole, Volume2, Settings, History, Plus, Gamepad2, Home } from 'lucide-react';
+import { Users, LockKeyhole, Volume2, Settings, History, Plus, Gamepad2, Home, Dot } from 'lucide-react';
 import clsx from 'clsx';
 import { useActiveUser } from '../state/ActiveUserContext';
 import { useEffect, useState } from 'react';
@@ -36,7 +36,7 @@ const NavItem = ({
       to={to}
       className={clsx(
         "flex items-center transition-colors hover:bg-gray-100",
-        iconOnly ? "justify-center w-full h-11 rounded-2xl" : "gap-3 px-4 py-3",
+        iconOnly ? "justify-center w-full h-10 rounded-2xl" : "gap-3 px-4 py-3",
         isActive
           ? "bg-gray-100 text-black"
           : "bg-white",
@@ -155,6 +155,7 @@ export const Sidebar = () => {
         >
           <img src={elatoPng} alt="Elato" className="w-18 h-auto object-contain" />
         </a>
+        <div className="flex items-center" style={{ fontSize: '10px'}}>
         <a
           href="https://www.elatoai.com/products"
           target="_blank"
@@ -163,7 +164,7 @@ export const Sidebar = () => {
         >
           DIY AI Toys
         </a>
-        <div className="flex flex-row gap-2">
+        <Dot size={16} className="opacity-70" />
           <a
             href="mailto:akash@elatoai.com"
             target="_blank"
@@ -172,7 +173,8 @@ export const Sidebar = () => {
           >
             Get Support
           </a>
-        </div>
+</div>
+
       </div>
       <Modal
         open={createMenuOpen}

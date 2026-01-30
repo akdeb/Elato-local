@@ -35,25 +35,55 @@ export const TestPage = () => {
   useEffect(() => {
     if (!viewOnly) return;
     let cancelled = false;
-    let timer: number | null = null;
-    const poll = async () => {
+    let retryTimer: number | null = null;
+    let es: EventSource | null = null;
+    const base = (import.meta as any).env?.VITE_API_BASE || "http://127.0.0.1:8000";
+    const url = base.replace("localhost", "127.0.0.1").replace(/\/+$/, "");
+
+    const start = () => {
+      if (cancelled) return;
       try {
-        const ds = await api.getDeviceStatus().catch(() => null);
-        if (!cancelled && ds) {
-          setDeviceConnected(ds?.ws_status === "connected");
-          setDeviceSessionId(ds?.session_id || null);
+        es = new EventSource(`${url}/events/device`);
+      } catch {
+        retryTimer = window.setTimeout(start, 3000);
+        return;
+      }
+
+      es.onmessage = (ev) => {
+        if (cancelled) return;
+        try {
+          const data = JSON.parse(ev.data || "{}");
+          setDeviceConnected(data?.ws_status === "connected");
+          setDeviceSessionId(data?.session_id || null);
+        } catch {
+          // ignore
         }
+      };
+
+      es.onerror = () => {
+        if (cancelled) return;
+        try {
+          es?.close();
+        } catch {
+          // ignore
+        }
+        es = null;
+        if (retryTimer == null) {
+          retryTimer = window.setTimeout(start, 3000);
+        }
+      };
+    };
+
+    start();
+    return () => {
+      cancelled = true;
+      if (retryTimer != null) window.clearTimeout(retryTimer);
+      try {
+        es?.close();
       } catch {
         // ignore
       }
-      if (!cancelled) {
-        timer = window.setTimeout(poll, 2000);
-      }
-    };
-    poll();
-    return () => {
-      cancelled = true;
-      if (timer != null) window.clearTimeout(timer);
+      es = null;
     };
   }, [viewOnly]);
 

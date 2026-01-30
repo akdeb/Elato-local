@@ -8,6 +8,8 @@ import { Bot, X, RefreshCw } from 'lucide-react';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { VoiceWsProvider, useVoiceWs } from '../state/VoiceWsContext';
 
+const API_BASE = (import.meta as any).env?.VITE_API_BASE || 'http://127.0.0.1:8000';
+
 const LayoutInner = () => {
   const { activeUser } = useActiveUser();
   const location = useLocation();
@@ -113,25 +115,54 @@ const LayoutInner = () => {
 
   useEffect(() => {
     let cancelled = false;
-    let pollTimer: number | null = null;
-    const poll = async () => {
+    let retryTimer: number | null = null;
+    let es: EventSource | null = null;
+    const base = API_BASE.replace('localhost', '127.0.0.1').replace(/\/+$/, '');
+
+    const start = () => {
+      if (cancelled) return;
       try {
-        const ds = await api.getDeviceStatus().catch(() => null);
-        if (!cancelled && ds) {
-          setDeviceConnected(ds?.ws_status === 'connected');
+        es = new EventSource(`${base}/events/device`);
+      } catch {
+        retryTimer = window.setTimeout(start, 3000);
+        return;
+      }
+
+      es.onmessage = (ev) => {
+        if (cancelled) return;
+        try {
+          const data = JSON.parse(ev.data || '{}');
+          setDeviceConnected(data?.ws_status === 'connected');
+          setDeviceSessionId(data?.session_id || null);
+        } catch {
+          // ignore
         }
+      };
+
+      es.onerror = () => {
+        if (cancelled) return;
+        try {
+          es?.close();
+        } catch {
+          // ignore
+        }
+        es = null;
+        if (retryTimer == null) {
+          retryTimer = window.setTimeout(start, 3000);
+        }
+      };
+    };
+
+    start();
+    return () => {
+      cancelled = true;
+      if (retryTimer != null) window.clearTimeout(retryTimer);
+      try {
+        es?.close();
       } catch {
         // ignore
       }
-      if (!cancelled) {
-        pollTimer = window.setTimeout(poll, 2000);
-      }
-    };
-
-    void poll();
-    return () => {
-      cancelled = true;
-      if (pollTimer != null) window.clearTimeout(pollTimer);
+      es = null;
     };
   }, []);
 
@@ -191,12 +222,13 @@ const LayoutInner = () => {
       {showNetworkBanner && (
         <div className="bg-(--color-retro-blue) text-white px-4 py-3 flex items-center justify-between shadow-md z-50 shrink-0 border-b-2 border-black">
           <div className="font-mono text-sm flex items-center gap-2">
-            <RefreshCw className="animate-spin" size={16} />
+            <RefreshCw size={16} />
             <span>
               <strong>WiFi Change Detected: Refresh your app so your toy can find you.</strong>
             </span>
           </div>
-          <button   disabled={isRefreshing}
+          <button
+            disabled={isRefreshing}
             onClick={async () => {
               try {
                 setIsRefreshing(true);
@@ -207,7 +239,7 @@ const LayoutInner = () => {
               setIsRefreshing(false);
               window.location.reload();
             }}
-            className="flex items-center rounded-[12px] gap-2 bg-white text-black px-3 cursor-not-allowed py-1.5 border-2 border-black shadow-[2px_2px_0px_rgba(0,0,0,1)] active:translate-x-px active:translate-y-px active:shadow-none font-bold text-xs uppercase hover:bg-gray-50 transition-all opacity-50"
+            className="retro-btn retro-btn-outline no-lift px-3 py-1.5 text-xs uppercase font-bold flex items-center gap-2"
           >
             Refresh
           </button>

@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import socket
+import time
 import sys
 import uuid
 from contextlib import asynccontextmanager
@@ -13,6 +14,8 @@ from pathlib import Path
 from typing import Dict, List, Optional
 import re
 import urllib.request
+import urllib.error
+import urllib.parse
 
 os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
 os.environ.setdefault("HF_HUB_ENABLE_HF_TRANSFER", "1")
@@ -65,6 +68,21 @@ manager = ConnectionManager()
 mdns_service = MdnsService()
 
 LLM_PROFILE_CACHE: Dict[str, Dict[str, object]] = {}
+DEVICE_WATCHERS: set[asyncio.Queue] = set()
+ESP32_WS: Optional[WebSocket] = None
+ESP32_SESSION_ID: Optional[str] = None
+
+
+def _start_mdns_service(server_port: int) -> None:
+    try:
+        mdns_service.start(server_port)
+    except Exception as exc:
+        mdns_service.enabled = False
+        try:
+            mdns_service.current_ip = get_local_ip()
+        except Exception:
+            mdns_service.current_ip = None
+        logger.warning("mDNS start failed: %s", exc)
 
 
 def _load_llm_profiles() -> Dict[str, Dict[str, object]]:
@@ -97,27 +115,25 @@ def _strip_thinking(text: str) -> str:
     return cleaned.strip()
 
 
+def _push_device_event(payload: Dict[str, object]) -> None:
+    if not DEVICE_WATCHERS:
+        return
+    for q in list(DEVICE_WATCHERS):
+        try:
+            q.put_nowait(payload)
+        except Exception:
+            pass
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global pipeline
     app.state.pipeline_ready = False
     udp_task = None
     
-    # Start mDNS service advertisement (non-blocking)
+    # Start mDNS service advertisement (fire-and-forget)
     server_port = getattr(app.state, "server_port", 8000)
-
-    async def start_mdns_async() -> None:
-        try:
-            await asyncio.wait_for(asyncio.to_thread(mdns_service.start, server_port), timeout=2.0)
-        except Exception as exc:
-            mdns_service.enabled = False
-            try:
-                mdns_service.current_ip = get_local_ip()
-            except Exception:
-                mdns_service.current_ip = None
-            logger.warning("mDNS start timed out or failed: %s", exc)
-
-    asyncio.create_task(start_mdns_async())
+    asyncio.create_task(asyncio.to_thread(_start_mdns_service, server_port))
 
     async def broadcast_server():
         ip = get_local_ip()
@@ -216,16 +232,35 @@ async def restart_mdns():
     server_port = getattr(app.state, "server_port", 8000)
     logger.info("Manual mDNS restart requested")
     mdns_service.stop()
-    try:
-        await asyncio.wait_for(asyncio.to_thread(mdns_service.start, server_port), timeout=2.0)
-    except Exception as exc:
-        mdns_service.enabled = False
+    asyncio.create_task(asyncio.to_thread(_start_mdns_service, server_port))
+    return {"status": "starting", "ip": mdns_service.current_ip}
+
+
+@app.get("/events/device")
+async def device_events():
+    async def stream():
+        q: asyncio.Queue = asyncio.Queue(maxsize=5)
+        DEVICE_WATCHERS.add(q)
         try:
-            mdns_service.current_ip = get_local_ip()
-        except Exception:
-            mdns_service.current_ip = None
-        return {"status": "failed", "error": str(exc), "ip": mdns_service.current_ip}
-    return {"status": "restarted", "ip": mdns_service.current_ip}
+            status = db_service.db_service.get_device_status()
+            yield f"data: {json.dumps(status)}\n\n"
+            while True:
+                data = await q.get()
+                yield f"data: {json.dumps(data)}\n\n"
+        finally:
+            DEVICE_WATCHERS.discard(q)
+
+    return StreamingResponse(
+        stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+            "Access-Control-Allow-Origin": "*",
+        },
+    )
+
 
 @app.get("/health")
 async def health():
@@ -335,6 +370,28 @@ async def update_device(body: DeviceUpdate):
     """Patch ESP32 device state."""
     patch = body.model_dump(exclude_unset=True)
     return db_service.db_service.update_esp32_device(patch)
+
+
+@app.post("/device/disconnect")
+async def disconnect_device():
+    """Force close the ESP32 WebSocket session."""
+    global ESP32_WS, ESP32_SESSION_ID
+    if ESP32_WS:
+        try:
+            await ESP32_WS.send_json({"type": "server", "msg": "SESSION.END"})
+        except Exception:
+            pass
+        try:
+            await ESP32_WS.close(code=1000)
+        except Exception:
+            pass
+    ESP32_WS = None
+    ESP32_SESSION_ID = None
+    status = db_service.db_service.update_esp32_device(
+        {"ws_status": "disconnected", "ws_last_seen": time.time(), "session_id": None}
+    )
+    _push_device_event(status)
+    return status
 
 
 class FirmwareFlashRequest(BaseModel):
@@ -739,25 +796,106 @@ async def download_voice_asset(body: VoiceDownloadRequest):
     if not voice_id:
         raise HTTPException(status_code=400, detail="voice_id is required")
 
-    url = f"https://pub-6b92949063b142d59fc3478c56ec196c.r2.dev/{voice_id}.wav"
-    try:
-        def _fetch() -> bytes:
-            with urllib.request.urlopen(url, timeout=30) as resp:
-                if resp.status != 200:
-                    raise HTTPException(status_code=404, detail=f"Voice not found: {voice_id}")
-                return resp.read()
+    print('downloading voice', voice_id)
 
-        data = await asyncio.to_thread(_fetch)
+    base_url = os.environ.get(
+        "ELATO_VOICE_BASE_URL",
+        "https://pub-6b92949063b142d59fc3478c56ec196c.r2.dev",
+    ).rstrip("/")
+    url = f"{base_url}/{urllib.parse.quote(voice_id)}.wav"
+    timeout_s = float(os.environ.get("ELATO_VOICE_TIMEOUT_S", "10"))
+    try:
+        out_dir = _voices_dir()
+        out_dir.mkdir(parents=True, exist_ok=True)
+        tmp_path = out_dir.joinpath(f"{voice_id}.wav.part")
+        final_path = out_dir.joinpath(f"{voice_id}.wav")
+
+        def _fetch_to_path() -> None:
+            try:
+                start = time.monotonic()
+                bytes_written = 0
+                use_proxy = os.environ.get("ELATO_VOICE_USE_PROXY", "0") == "1"
+                opener = (
+                    urllib.request.build_opener()
+                    if use_proxy
+                    else urllib.request.build_opener(urllib.request.ProxyHandler({}))
+                )
+                req = urllib.request.Request(
+                    url,
+                    headers={
+                        "User-Agent": "Elato/1.0",
+                        "Accept": "audio/wav,application/octet-stream;q=0.9,*/*;q=0.8",
+                        "Accept-Encoding": "identity",
+                    },
+                )
+                with opener.open(req, timeout=timeout_s) as resp:
+                    if resp.status != 200:
+                        raise HTTPException(status_code=404, detail=f"Voice not found: {voice_id}")
+                    content_length = resp.getheader("Content-Length")
+                    try:
+                        resolved = socket.getaddrinfo("pub-6b92949063b142d59fc3478c56ec196c.r2.dev", 443)
+                        resolved_ips = ",".join(sorted({r[4][0] for r in resolved}))
+                    except Exception:
+                        resolved_ips = "unknown"
+                    logger.info(
+                        "Downloading voice %s from %s (timeout=%.0fs, content_length=%s, resolved=%s, proxy=%s)",
+                        voice_id,
+                        url,
+                        timeout_s,
+                        content_length,
+                        resolved_ips,
+                        "on" if use_proxy else "off",
+                    )
+                    with open(tmp_path, "wb") as f:
+                        while True:
+                            chunk = resp.read(256 * 1024)
+                            if not chunk:
+                                break
+                            f.write(chunk)
+                            bytes_written += len(chunk)
+                elapsed = time.monotonic() - start
+                logger.info(
+                    "Downloaded voice %s (%d bytes) in %.2fs",
+                    voice_id,
+                    bytes_written,
+                    elapsed,
+                )
+                if tmp_path.exists():
+                    tmp_path.replace(final_path)
+            except Exception:
+                if tmp_path.exists():
+                    try:
+                        tmp_path.unlink()
+                    except Exception:
+                        pass
+                raise
+
+        await asyncio.to_thread(_fetch_to_path)
     except HTTPException:
         raise
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            raise HTTPException(status_code=404, detail=f"Voice not found: {voice_id}")
+        detail = f"Failed to download (HTTP {e.code})"
+        logger.warning("Voice download failed for %s: %s", voice_id, detail)
+        raise HTTPException(status_code=502, detail=detail)
+    except (socket.timeout, TimeoutError) as e:
+        detail = f"Failed to download (timeout after {timeout_s:.0f}s)"
+        logger.warning("Voice download failed for %s: %s", voice_id, detail)
+        raise HTTPException(status_code=504, detail=detail)
+    except urllib.error.URLError as e:
+        if isinstance(getattr(e, "reason", None), socket.timeout):
+            detail = f"Failed to download (timeout after {timeout_s:.0f}s)"
+            logger.warning("Voice download failed for %s: %s", voice_id, detail)
+            raise HTTPException(status_code=504, detail=detail)
+        detail = f"Failed to download (network error: {getattr(e, 'reason', e)})"
+        logger.warning("Voice download failed for %s: %s", voice_id, detail)
+        raise HTTPException(status_code=502, detail=detail)
     except Exception as e:
+        logger.warning("Voice download failed for %s: %s", voice_id, e)
         raise HTTPException(status_code=502, detail=f"Failed to download: {e}")
 
-    out_dir = _voices_dir()
-    out_dir.mkdir(parents=True, exist_ok=True)
-    path = out_dir.joinpath(f"{voice_id}.wav")
-    path.write_bytes(data)
-    return {"path": str(path)}
+    return {"path": str(final_path)}
 
 
 @app.get("/assets/voices/list")
@@ -1122,11 +1260,13 @@ async def websocket_unified(websocket: WebSocket, client_type: str = Query(defau
     if header_client in (CLIENT_TYPE_ESP32, CLIENT_TYPE_DESKTOP):
         client_type = header_client
     
+    global ESP32_WS, ESP32_SESSION_ID
     is_esp32 = client_type == CLIENT_TYPE_ESP32
     client_label = "[ESP32]" if is_esp32 else "[Desktop]"
     
     if is_esp32:
         await websocket.accept()
+        ESP32_WS = websocket
     else:
         await manager.connect(websocket)
 
@@ -1138,6 +1278,8 @@ async def websocket_unified(websocket: WebSocket, client_type: str = Query(defau
     thinking_model = _is_thinking_model(llm_repo)
 
     session_id = str(uuid.uuid4())
+    if is_esp32:
+        ESP32_SESSION_ID = session_id
     
     # Get active user/personality
     user_id = db_service.db_service.get_active_user_id()
@@ -1163,6 +1305,19 @@ async def websocket_unified(websocket: WebSocket, client_type: str = Query(defau
         )
     except Exception as e:
         logger.error(f"Failed to start session: {e}")
+
+    if is_esp32:
+        try:
+            status = db_service.db_service.update_esp32_device(
+                {
+                    "ws_status": "connected",
+                    "ws_last_seen": time.time(),
+                    "session_id": session_id,
+                }
+            )
+            _push_device_event(status)
+        except Exception:
+            pass
 
     # Helper to build LLM context with conversation history
     def _build_llm_context(user_text: str) -> List[Dict[str, str]]:
@@ -1737,7 +1892,22 @@ async def websocket_unified(websocket: WebSocket, client_type: str = Query(defau
         if current_tts_task and not current_tts_task.done():
             cancel_event.set()
             current_tts_task.cancel()
-        if not is_esp32:
+        if is_esp32:
+            try:
+                status = db_service.db_service.update_esp32_device(
+                    {
+                        "ws_status": "disconnected",
+                        "ws_last_seen": time.time(),
+                        "session_id": None,
+                    }
+                )
+                _push_device_event(status)
+            except Exception:
+                pass
+            if ESP32_WS is websocket:
+                ESP32_WS = None
+                ESP32_SESSION_ID = None
+        else:
             manager.disconnect(websocket)
         try:
             db_service.db_service.end_session(session_id)
