@@ -12,6 +12,7 @@ import {
   Brain,
 } from "lucide-react";
 import { LlmSelector } from "../components/LlmSelector";
+import { STARTUP_DEFAULT_MESSAGE } from "../constants";
 
 interface ModelInfo {
   id: string;
@@ -151,7 +152,7 @@ export const ModelSetupPage = () => {
 
   const handleContinue = async () => {
     try {
-      setProgress("Starting Local AI Engine...");
+      setProgress(STARTUP_DEFAULT_MESSAGE);
       await invoke("start_backend");
       await invoke("mark_setup_complete");
       setError(null);

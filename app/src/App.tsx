@@ -12,13 +12,14 @@ import { SetupPage } from "./pages/Setup";
 import { ModelSetupPage } from "./pages/ModelSetup";
 import { VoicesPage } from "./pages/Voices";
 import { api } from "./api";
+import { STARTUP_DEFAULT_MESSAGE } from "./constants";
 import "./App.css";
 
 function SetupGate() {
   const [checking, setChecking] = useState(true);
   const [needsSetup, setNeedsSetup] = useState(false);
   const [backendReady, setBackendReady] = useState(false);
-  const [startupMsg, setStartupMsg] = useState<string>("Starting Local AI Engine...");
+  const [startupMsg, setStartupMsg] = useState<string>(STARTUP_DEFAULT_MESSAGE);
 
   useEffect(() => {
     let cancelled = false;
@@ -55,7 +56,7 @@ function SetupGate() {
             return;
           }
         } catch {
-          if (!cancelled) setStartupMsg("Starting Local AI Engine...");
+          if (!cancelled) setStartupMsg(STARTUP_DEFAULT_MESSAGE);
         }
         await new Promise((r) => setTimeout(r, 500));
       }
