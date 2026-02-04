@@ -306,7 +306,7 @@ style={{
               <img
                 src={imgSrcFor(infoExperience) || ''}
                 alt=""
-                className="h-auto w-auto max-h-full max-w-[80%] object-contain object-center"
+                className="h-auto w-auto max-h-full max-w-full object-contain object-center"
                 onError={() => {
                   setBrokenImgById((prev) => ({ ...prev, [String(infoExperience.id)]: true }));
                 }}
@@ -418,7 +418,7 @@ style={{
                         <img
                           src={imgSrcFor(p) || ''}
                           alt=""
-                          className="h-auto w-auto max-h-full max-w-[80%] object-contain object-center origin-center transition-transform duration-200 group-hover:scale-105"
+                          className="h-auto w-auto max-h-full max-w-full object-contain object-center origin-center transition-transform duration-200 group-hover:scale-105"
                           onError={() => {
                             setBrokenImgById((prev) => ({ ...prev, [String(p.id)]: true }));
                           }}
@@ -471,7 +471,7 @@ style={{
                         <img
                           src={imgSrcFor(p) || ''}
                           alt=""
-                          className="h-auto w-auto max-h-full max-w-[80%] object-contain object-center origin-center transition-transform duration-200 group-hover:scale-105"
+                          className="h-auto w-auto max-h-full max-w-full object-contain object-center origin-center transition-transform duration-200 group-hover:scale-105"
                           onError={() => {
                             setBrokenImgById((prev) => ({ ...prev, [String(p.id)]: true }));
                           }}

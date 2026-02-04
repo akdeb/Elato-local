@@ -2,6 +2,7 @@
 #include <nvs_flash.h>
 #include <ESPmDNS.h>
 #include <WiFiUdp.h>
+#include <WiFiClient.h>
 
 // ! define preferences
 Preferences preferences;
@@ -10,6 +11,31 @@ volatile bool sleepRequested = false;
 String ws_server_ip = "";  // Dynamically discovered via mDNS
 const uint16_t ws_port = 8000;
 const char *ws_path = "/ws/esp32";
+
+static bool isReachable(const String &ip, uint16_t port, uint32_t timeoutMs = 1500) {
+    WiFiClient probe;
+    bool ok = probe.connect(ip.c_str(), port, timeoutMs);
+    if (ok) {
+        probe.stop();
+        return true;
+    }
+    return false;
+}
+
+static bool cacheServer(const String &ip, uint16_t port) {
+    preferences.begin("server", false);
+    preferences.putString("ws_ip", ip);
+    preferences.putUInt("ws_port", port);
+    preferences.end();
+    return true;
+}
+
+static void clearCachedServer() {
+    preferences.begin("server", false);
+    preferences.remove("ws_ip");
+    preferences.remove("ws_port");
+    preferences.end();
+}
 
 /**
  * @brief Discover Elato server via mDNS
@@ -61,11 +87,13 @@ bool discoverElatoServer(String &outIp, uint16_t &outPort, int timeoutMs) {
                     if (second > first) {
                         outIp = msg.substring(first + 1, second);
                         outPort = (uint16_t)msg.substring(second + 1).toInt();
+                        if (!isReachable(outIp, outPort)) {
+                            Serial.printf("[UDP] Server %s:%d not reachable\n", outIp.c_str(), outPort);
+                            udp.stop();
+                            return false;
+                        }
                         Serial.printf("[UDP] Found server %s:%d\n", outIp.c_str(), outPort);
-                        preferences.begin("server", false);
-                        preferences.putString("ws_ip", outIp);
-                        preferences.putUInt("ws_port", outPort);
-                        preferences.end();
+                        cacheServer(outIp, outPort);
                         udp.stop();
                         return true;
                     }
@@ -82,13 +110,15 @@ bool discoverElatoServer(String &outIp, uint16_t &outPort, int timeoutMs) {
             bool sameSubnet = ((uint32_t)localIp & (uint32_t)mask) == ((uint32_t)hostIp & (uint32_t)mask);
             if (sameSubnet) {
                 outIp = hostIp.toString();
-                outPort = ws_port;
-                Serial.printf("[mDNS] Found host elato.local at %s:%d\n", outIp.c_str(), outPort);
-                preferences.begin("server", false);
-                preferences.putString("ws_ip", outIp);
-                preferences.putUInt("ws_port", outPort);
-                preferences.end();
-                return true;
+                int n2 = MDNS.queryService("elato", "tcp");
+                outPort = n2 > 0 ? MDNS.port(0) : ws_port;
+                if (!isReachable(outIp, outPort)) {
+                    Serial.printf("[mDNS] Host elato.local %s:%d not reachable\n", outIp.c_str(), outPort);
+                } else {
+                    Serial.printf("[mDNS] Found host elato.local at %s:%d\n", outIp.c_str(), outPort);
+                    cacheServer(outIp, outPort);
+                    return true;
+                }
             }
             Serial.printf("[mDNS] Ignoring elato.local at %s (different subnet)\n", hostIp.toString().c_str());
         }
@@ -104,7 +134,7 @@ bool discoverElatoServer(String &outIp, uint16_t &outPort, int timeoutMs) {
                 IPAddress localIp = WiFi.localIP();
                 IPAddress mask = WiFi.subnetMask();
                 bool sameSubnet = ((uint32_t)localIp & (uint32_t)mask) == ((uint32_t)cachedAddr & (uint32_t)mask);
-                if (sameSubnet) {
+                if (sameSubnet && isReachable(cachedIp, (uint16_t)cachedPort)) {
                     outIp = cachedIp;
                     outPort = (uint16_t)cachedPort;
                     Serial.printf("[mDNS] Using cached server %s:%d\n", outIp.c_str(), outPort);
@@ -112,10 +142,7 @@ bool discoverElatoServer(String &outIp, uint16_t &outPort, int timeoutMs) {
                 }
             }
 
-            preferences.begin("server", false);
-            preferences.remove("ws_ip");
-            preferences.remove("ws_port");
-            preferences.end();
+            clearCachedServer();
             Serial.println("[mDNS] Cached server is not reachable, clearing cache");
         }
 
@@ -126,14 +153,13 @@ bool discoverElatoServer(String &outIp, uint16_t &outPort, int timeoutMs) {
     // Use the first discovered service
     outIp = MDNS.IP(0).toString();
     outPort = MDNS.port(0);
-    
-    Serial.printf("[mDNS] Found Elato server at %s:%d\n", outIp.c_str(), outPort);
-    
-    preferences.begin("server", false);
-    preferences.putString("ws_ip", outIp);
-    preferences.putUInt("ws_port", outPort);
-    preferences.end();
+    if (!isReachable(outIp, outPort)) {
+        Serial.printf("[mDNS] Service %s:%d not reachable\n", outIp.c_str(), outPort);
+        return false;
+    }
 
+    Serial.printf("[mDNS] Found Elato server at %s:%d\n", outIp.c_str(), outPort);
+    cacheServer(outIp, outPort);
     return true;
 }
 
