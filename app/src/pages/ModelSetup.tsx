@@ -117,17 +117,31 @@ export const ModelSetupPage = () => {
   };
 
   const downloadModel = async (repoId: string) => {
+    let ok = false;
     try {
       setDownloading(repoId);
       setError(null);
       setProgress(`Downloading ${repoId}...`);
       await invoke("download_model", { repoId });
       await checkModels();
+      ok = true;
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
       setDownloading(null);
       setProgress("");
+    }
+    return ok;
+  };
+  const handleLlmPrimaryAction = async () => {
+    if (!selectedLlmRepoId) return;
+    if (llmDownloaded) {
+      await saveSelectedLlm(selectedLlmRepoId);
+      return;
+    }
+    const ok = await downloadModel(selectedLlmRepoId);
+    if (ok) {
+      await saveSelectedLlm(selectedLlmRepoId);
     }
   };
 
@@ -202,52 +216,58 @@ export const ModelSetupPage = () => {
     <div className="min-h-screen bg-(--color-retro-bg) flex items-center justify-center p-8">
       <div className="max-w-2xl w-full">
         <div className="text-center mb-6">
-          <h1 className="text-4xl font-black tracking-wider brand-font">MODEL SETUP</h1>
+          <h1 className="text-2xl font-black tracking-wider">AI Model Setup</h1>
         </div>
 
         <div className="retro-card space-y-4">
           <div className="font-bold uppercase text-sm flex items-center gap-2 border-b-2 border-black pb-2">
             <Brain className="w-4 h-4" />
-            Language Model
+                               <div className="text-xs text-gray-500 uppercase tracking-wider font-semibold">
+                        Language Model
+                      </div>
           </div>
 
           <LlmSelector
             value={selectedLlmRepoId}
             onChange={(repoId) => setSelectedLlmRepoId(repoId)}
-            label="LLM"
+            label="Pick an LLM that suits your needs"
           />
 
           <div className="flex items-center gap-3">
             <button
               className="retro-btn text-xs py-1.5 px-4"
-              onClick={() => saveSelectedLlm(selectedLlmRepoId)}
-              disabled={!selectedLlmRepoId || savingLlm}
+              onClick={handleLlmPrimaryAction}
+              disabled={
+                !selectedLlmRepoId ||
+                savingLlm ||
+                downloadingAll ||
+                downloading === selectedLlmRepoId
+              }
             >
-              {savingLlm ? "Saving..." : "Save"}
+              {downloading === selectedLlmRepoId
+                ? "Downloading..."
+                : savingLlm
+                  ? "Saving..."
+                  : llmDownloaded
+                    ? "Set as active"
+                    : "Download & set active"}
             </button>
-            {llmDownloaded ? (
-              <span className="text-xs font-bold uppercase tracking-wide text-green-700 bg-green-50 px-3 py-1.5 rounded-full border border-green-200">
-                Downloaded
-              </span>
-            ) : (
-              <button
-                className="retro-btn text-xs py-1.5 px-4"
-                onClick={() => downloadModel(selectedLlmRepoId)}
-                disabled={
-                  !selectedLlmRepoId ||
-                  savingLlm ||
-                  downloadingAll ||
-                  downloading === selectedLlmRepoId
-                }
-              >
-                {downloading === selectedLlmRepoId ? "Downloading..." : "Download"}
-              </button>
+            {llmDownloaded && (
+              <div className="ml-auto flex items-center gap-1 rounded-full bg-emerald-500 text-white px-3 py-1">
+                <CheckCircle2 className="w-4 h-4" />
+                <span className="text-xs font-semibold uppercase tracking-wide">Ready</span>
+              </div>
             )}
           </div>
 
           {selectedLlmRepoId && (
             <div className="text-[10px] font-mono text-gray-400 truncate">
               {selectedLlmRepoId}
+            </div>
+          )}
+          {selectedLlmRepoId && llmDownloaded && (
+            <div className="text-xs text-gray-500 mt-1">
+              Active model will be applied on restart.
             </div>
           )}
         </div>
@@ -263,36 +283,36 @@ export const ModelSetupPage = () => {
                 {requiredModels.map((model) => (
                   <div
                     key={model.id}
-                    className="bg-white border border-black rounded-xl p-4 flex items-center gap-4 retro-shadow-sm"
+                    className="bg-white border border-gray-200 rounded-2xl p-4 flex items-center gap-4 shadow-sm"
                   >
                     <div
-                      className={`p-2 rounded-lg border border-black ${
-                        model.downloaded ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
+                      className={`w-10 h-10 flex items-center justify-center rounded-full ${
+                        model.downloaded ? "bg-green-500 text-white" : "bg-gray-100 text-gray-500"
                       }`}
                     >
                       {getModelIcon(model.model_type)}
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      <div className="font-bold text-sm">{model.name}</div>
-                      <div className="text-xs text-gray-500 uppercase tracking-wider font-bold mt-0.5">
+                      <div className="text-xs text-gray-500 uppercase tracking-wider font-semibold">
                         {getModelTypeLabel(model.model_type)}
                       </div>
-                      <div className="text-[10px] font-mono text-gray-400 truncate mt-1 bg-gray-50 px-1.5 py-0.5 rounded inline-block">
+                      <div className="font-bold text-sm text-gray-900 mt-0.5">{model.name}</div>
+                      <div className="text-[10px] font-mono text-gray-400 truncate mt-1">
                         {model.repo_id}
                       </div>
                     </div>
 
                     <div className="flex items-center gap-3">
                       {model.downloaded ? (
-                        <div className="flex items-center gap-1 text-green-600 bg-green-50 px-3 py-1.5 rounded-full border border-green-200">
-                          <CheckCircle2 className="w-4 h-4" />
-                          <span className="text-xs font-bold uppercase tracking-wide">Ready</span>
+                        <div className="flex items-center gap-1 rounded-full px-3 py-1">
+                          <CheckCircle2 className="w-4 h-4 text-white"  fill="black" />
+                          <span className="text-xs font-semibold uppercase tracking-wide">Ready</span>
                         </div>
                       ) : downloading === model.repo_id || downloadingAll ? (
-                        <div className="flex items-center gap-2 text-blue-600 bg-blue-50 px-3 py-1.5 rounded-full border border-blue-200">
+                        <div className="flex items-center gap-2 text-blue-600">
                           <Loader2 className="w-4 h-4 animate-spin" />
-                          <span className="text-xs font-bold uppercase tracking-wide">Downloading</span>
+                          <span className="text-xs font-semibold uppercase tracking-wide">Downloading</span>
                         </div>
                       ) : (
                         <button

@@ -2,7 +2,9 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { Loader2, CheckCircle2, XCircle, Download } from "lucide-react";
+import { CheckCircle2, Loader2 } from "lucide-react";
+import logoPng from "../assets/logo.png";
+import { SETUP_COPY } from "../constants";
 
 interface SetupStatus {
   python_installed: boolean;
@@ -18,9 +20,17 @@ type SetupStep = "checking" | "creating-venv" | "installing-deps" | "complete";
 export const SetupPage = () => {
   const navigate = useNavigate();
   const [step, setStep] = useState<SetupStep>("checking");
-  const [status, setStatus] = useState<SetupStatus | null>(null);
+  const [, setStatus] = useState<SetupStatus | null>(null);
   const [progress, setProgress] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
+  const activeStepLabel =
+    step === "installing-deps"
+      ? SETUP_COPY.activeStepTeaching
+      : step === "creating-venv" || step === "checking"
+        ? SETUP_COPY.activeStepPreparing
+        : "Ready";
+  const progressPercent =
+    step === "complete" ? 100 : step === "installing-deps" ? 66 : step === "creating-venv" ? 33 : 10;
 
   useEffect(() => {
     const unlisten = listen<string>("setup-progress", (event) => {
@@ -58,11 +68,11 @@ export const SetupPage = () => {
     try {
       setError(null);
       setStep("creating-venv");
-      setProgress("Using bundled Python runtime...");
+      setProgress(`${SETUP_COPY.activeStepPreparing}...`);
       await invoke("create_python_venv");
 
       setStep("installing-deps");
-      setProgress("Installing dependencies...");
+      setProgress(`${SETUP_COPY.activeStepTeaching}...`);
       await invoke("install_python_deps");
 
       setStep("complete");
@@ -74,7 +84,7 @@ export const SetupPage = () => {
   const installDeps = async () => {
     try {
       setError(null);
-      setProgress("Installing dependencies...");
+      setProgress(`${SETUP_COPY.activeStepTeaching}...`);
       await invoke("install_python_deps");
 
       setStep("complete");
@@ -87,99 +97,80 @@ export const SetupPage = () => {
     navigate("/model-setup", { replace: true });
   };
 
-  const renderStepIndicator = (
-    label: string,
-    isActive: boolean,
-    isComplete: boolean,
-    isFailed: boolean
-  ) => (
-    <div className="flex items-center gap-3 py-2">
-      {isFailed ? (
-        <XCircle className="w-5 h-5 text-red-500" />
-      ) : isComplete ? (
-        <CheckCircle2 className="w-5 h-5 text-green-600" />
-      ) : isActive ? (
-        <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
-      ) : (
-        <div className="w-5 h-5 rounded-full border-2 border-gray-300" />
-      )}
-      <span
-        className={`font-medium ${
-          isActive ? "text-blue-600" : isComplete ? "text-green-600" : "text-gray-500"
-        }`}
-      >
-        {label}
-      </span>
-    </div>
-  );
-
   return (
-    <div className="min-h-screen bg-[var(--color-retro-bg)] flex items-center justify-center p-8">
+    <div className="min-h-screen bg-(--color-retro-bg) flex items-center justify-center p-8">
       <div className="max-w-lg w-full">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-black mb-2 tracking-wider brand-font">EPIC LOCAL AI TOYS</h1>
-          <p className="text-gray-600 font-mono">Let's set up your local AI engine</p>
+        <div className="mb-8">
+          <div className="flex items-center justify-center gap-2">
+            <img src={logoPng} alt="" className="w-10 h-10" />
+            <div className="text-4xl font-black tracking-wider brand-font mt-2">{SETUP_COPY.appName}</div>
+            <div className="text-xs">{SETUP_COPY.appSuffix}</div>
+            <div />
+          </div>
+            <div className="text-lg mt-2 text-center font-semibold text-gray-900">{SETUP_COPY.tagline}</div>
+
+
+          <div className="mt-6 text-center">
+
+            <div className="mt-3 text-gray-700 text-sm leading-relaxed">
+              {SETUP_COPY.privacyBlurb}
+              <br /><br />
+              {SETUP_COPY.durationBlurb}
+            </div>
+          </div>
         </div>
 
-        <div className="retro-card">
-          <div className="font-bold uppercase text-sm mb-4 flex items-center gap-2 border-b-2 border-black pb-2">
-            <Download className="w-4 h-4" />
-            Environment Setup
-          </div>
-
-          <div className="space-y-2">
-            {renderStepIndicator(
-                "Create virtual environment",
-                step === "checking" || step === "creating-venv",
-                (status?.venv_exists || step === "installing-deps" || step === "complete") ?? false,
-                false
-              )}
-            {status?.python_version && (
-              <div className="ml-8 text-xs text-gray-500 font-mono -mt-1 mb-2">
-                {status.python_version}
+          <div className="space-y-4">
+            <div className="mb-4">
+              <div className="h-4 w-full rounded-full bg-gray-100 overflow-hidden">
+                <div
+                  className="h-full bg-[#00c853] transition-all duration-300"
+                  style={{ width: `${progressPercent}%` }}
+                />
               </div>
-            )}
-              {renderStepIndicator(
-                "Install dependencies",
-                step === "installing-deps",
-                (status?.deps_installed || step === "complete") ?? false,
-                !!error && step === "installing-deps"
-              )}
-
-              {progress && step !== "complete" && (
-                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-xl">
-                  <div className="text-sm text-blue-700 font-mono">{progress}</div>
-                </div>
-              )}
+            </div>
 
               {error && (
                 <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-xl">
                   <div className="text-sm text-red-700 font-mono break-all">{error}</div>
-                  <button className="retro-btn mt-3" onClick={checkStatus}>
+                  <button className="retro-btn mt-3 w-full" onClick={checkStatus}>
                     Retry
                   </button>
                 </div>
               )}
 
               {step === "complete" && (
-                <div className="mt-6 space-y-4">
-                  <div className="p-3 bg-green-50 border border-green-200 rounded-xl">
-                    <div className="text-sm text-green-700 font-medium flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4" /> Environment setup complete!
-                    </div>
-                  </div>
+                <div className="mt-2">
                   <button className="retro-btn w-full" onClick={handleContinue}>
-                    Continue to Model Setup →
+                    Continue →
                   </button>
                 </div>
               )}
           </div>
-        </div>
 
         <div className="mt-6 text-center text-xs text-gray-500 font-mono opacity-60">
-          This will install MLX, Transformers, Numpy and other AI dependencies
+          You can keep using your computer while this finishes.
         </div>
       </div>
+      {!error && (
+        <div className="fixed bottom-6 right-6 pointer-events-none">
+          <div className="flex items-start gap-3 rounded-2xl border border-gray-200 bg-white/95 px-4 py-3 shadow-lg">
+            {step === "complete" ? (
+              <CheckCircle2 className="w-4 h-4 text-white mt-0.5" fill="black" />
+            ) : (
+              <Loader2 className="w-4 h-4 animate-spin text-gray-500 mt-0.5" />
+            )}
+            <div className="text-sm">
+              <div className="font-semibold text-gray-900">
+                {step === "complete" ? SETUP_COPY.toastComplete : activeStepLabel}
+              </div>
+              {progress && step !== "complete" && (
+                <div className="text-xs text-gray-500 mt-1">{progress}</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

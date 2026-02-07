@@ -61,23 +61,5 @@
     "quantization": "4bit",
     "specialty": "general",
     "thinking": true
-  },
-  {
-    "id": "medgemma-1.5-4b-4bit",
-    "name": "MedGemma 1.5 4B IT",
-    "repo_id": "mlx-community/medgemma-1.5-4b-it-4bit",
-    "params": "4B",
-    "quantization": "4bit",
-    "specialty": "medical",
-    "thinking": false
-  },
-  {
-    "id": "medgemma-1.5-4b-bf16",
-    "name": "MedGemma 1.5 4B BF16",
-    "repo_id": "mlx-community/medgemma-1.5-4b-it-bf16",
-    "params": "4B",
-    "quantization": "bf16",
-    "specialty": "medical",
-    "thinking": false
   }
 ]
