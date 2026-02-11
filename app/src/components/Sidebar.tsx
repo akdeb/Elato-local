@@ -107,7 +107,7 @@ export const Sidebar = () => {
       <div className="bg-white rounded-[24px] overflow-hidden shadow-[0_12px_28px_rgba(0,0,0,0.08)] border border-gray-200">
         <div className="p-4 pb-2 bg-white text-black flex flex-col items-center">
           <Logo />
-          <p className="text-xs font-mono opacity-90">Epic Local AI Toys</p>
+          <p className="text-xs font-mono opacity-90">Where Toys Come Alive</p>
         </div>
         <div className="bg-transparent border-gray-200">
           <nav className="flex flex-col">

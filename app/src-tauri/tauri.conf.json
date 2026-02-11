@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Epic Local AI Toys",
+  "productName": "Where Toys Come Alive",
   "version": "0.1.0",
   "identifier": "com.elato.epic-local-ai-toys",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Epic Local AI Toys",
+        "title": "Where Toys Come Alive",
         "width": 800,
         "height": 600
       }
