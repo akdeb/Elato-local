@@ -20,6 +20,36 @@ English | [中文](README.zh.md)
 
 </div>
 
+## Featured in
+<p>
+  <a href="https://www.wired.com/story/the-new-wild-west-of-ai-kids-toys/" target="_blank">
+    <img src="assets/wired.png" width="180" align="left"/>
+  </a>
+  <strong>The New Wild West of AI Kids Toys</strong>
+  <br/>
+  <a href="https://www.wired.com/story/the-new-wild-west-of-ai-kids-toys/">Read the WIRED article →</a>
+</p>
+<br clear="left"/>
+<p>
+  <a href="https://arstechnica.com/ai/2026/05/the-new-wild-west-of-ai-kids-toys/" target="_blank">
+    <img src="assets/arstechnica.png" width="180" align="left"/>
+  </a>
+<strong>AI kids' toys roundup </strong>
+  <br/>
+  <a href="https://arstechnica.com/ai/2026/05/the-new-wild-west-of-ai-kids-toys/">Read the ArsTechnica article →</a>
+</p>
+<br clear="left"/>
+
+<p>
+  <a href="https://www.hackster.io/news/the-easy-way-to-build-interactive-ai-toys-for-your-kids-0ba401a9328f" target="_blank">
+    <img src="assets/hackster.png" width="180" align="left"/>
+  </a>
+  <strong>The Easy Way to Build Interactive AI Toys for Your Kids</strong>
+  <br/>
+  <a href="https://www.hackster.io/news/the-easy-way-to-build-interactive-ai-toys-for-your-kids-0ba401a9328f">Read the Hackster article →</a>
+</p>
+<br clear="left"/>
+
 ## 🎥 Demo Video
 
 [![OpenToys Demo](assets/demo.png)](https://youtu.be/V5uNgMRsBHE)
