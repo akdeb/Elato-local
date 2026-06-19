@@ -38,6 +38,17 @@ async def update_device(body: DeviceUpdate):
 
 @router.post("/device/disconnect")
 async def disconnect_device(request: Request):
+    # Stop any in-flight response immediately so the toy stops speaking the moment
+    # End is pressed, rather than finishing the current reply. This mirrors how an
+    # interrupt cancels the active TTS, and we await it so the final idle signal
+    # below isn't raced by the cancelled response's own RESPONSE.COMPLETE.
+    stop_response = getattr(request.app.state, "esp32_stop_response", None)
+    if stop_response is not None:
+        try:
+            await stop_response()
+        except Exception:
+            pass
+
     esp32_ws = getattr(request.app.state, "esp32_ws", None)
     if esp32_ws:
         try:

@@ -128,6 +128,7 @@ async def lifespan(app: FastAPI):
     app.state.esp32_ws = None
     app.state.esp32_session_id = None
     app.state.esp32_start_event = asyncio.Event()
+    app.state.esp32_stop_response = None
     app.state.device_watchers = set()
     logger.info("Database service active")
 
@@ -819,6 +820,11 @@ async def websocket_unified(websocket: WebSocket, client_type: str = Query(defau
             current_tts_task = None
         cancel_event.clear()
 
+    # Let the /device/disconnect (End) route stop the active response immediately,
+    # the same way an interrupt does, so the toy stops speaking right away.
+    if is_esp32:
+        app.state.esp32_stop_response = _cancel_current_response
+
     async def _start_response_task(transcription: str, for_esp32: bool):
         nonlocal current_tts_task
         if not transcription or not transcription.strip():
@@ -1012,6 +1018,8 @@ async def websocket_unified(websocket: WebSocket, client_type: str = Query(defau
             if app.state.esp32_ws is websocket:
                 app.state.esp32_ws = None
                 app.state.esp32_session_id = None
+            if getattr(app.state, "esp32_stop_response", None) is _cancel_current_response:
+                app.state.esp32_stop_response = None
         else:
             manager.disconnect(websocket)
         try:

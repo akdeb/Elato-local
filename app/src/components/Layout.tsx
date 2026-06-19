@@ -282,7 +282,7 @@ const LayoutInner = () => {
                         </button>
                         <button
                           type="button"
-                          className="retro-btn retro-btn-purple no-lift w-11 h-11 p-0 flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed"
+                          className="retro-btn retro-btn-purple no-lift w-11 h-10 p-0 flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed"
                           onClick={() => {
                             if (needsVoiceDownload && activeVoiceId) {
                               navigate(`/voices?voice_id=${encodeURIComponent(String(activeVoiceId))}`);
