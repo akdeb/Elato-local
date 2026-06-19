@@ -122,6 +122,17 @@ void getAuthTokenFromNVS()
     preferences.end();
 }
 
+static void sendInterruptInstruction()
+{
+    static const char *interruptMessage = "{\"type\":\"instruction\",\"msg\":\"INTERRUPT\"}";
+
+    xSemaphoreTake(wsMutex, portMAX_DELAY);
+    if (webSocket.isConnected()) {
+        webSocket.sendTXT(interruptMessage);
+    }
+    xSemaphoreGive(wsMutex);
+}
+
 static bool getFirstApStationIp(IPAddress &stationIp)
 {
     wifi_sta_list_t wifiStaList;
@@ -257,7 +268,8 @@ void touchTask(void* parameter) {
     // Detect touch press (not touched -> touched) - SCHEDULE LISTENING
     if (isTouched && !lastTouchState && (currentTime - lastTouchTime > TOUCH_DEBOUNCE_DELAY)) {
         if (webSocket.isConnected()) {
-            Serial.println("👂 Touch detected - Scheduling listening...");
+            Serial.println("Touch detected - interrupting and scheduling listening...");
+            sendInterruptInstruction();
             scheduleListeningRestart = true;
             scheduledTime = millis() + 100; // Start listening in 100ms
         }

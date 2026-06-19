@@ -784,6 +784,33 @@ async def websocket_unified(websocket: WebSocket, client_type: str = Query(defau
         except Exception:
             pass
 
+    async def _cancel_current_response():
+        nonlocal current_tts_task
+        if current_tts_task and not current_tts_task.done() and not _is_bedtime():
+            cancel_event.set()
+            current_tts_task.cancel()
+            with suppress(asyncio.CancelledError, Exception):
+                await current_tts_task
+            current_tts_task = None
+        cancel_event.clear()
+
+    async def _start_response_task(transcription: str, for_esp32: bool):
+        nonlocal current_tts_task
+        if not transcription or not transcription.strip():
+            return
+        await _cancel_current_response()
+
+        async def _run(t=transcription):
+            try:
+                await process_transcription_and_respond(t, for_esp32=for_esp32)
+            except asyncio.CancelledError:
+                pass
+            except Exception as e:
+                logger.error(f"{label} Response error: {e}")
+                import traceback; traceback.print_exc()
+
+        current_tts_task = asyncio.create_task(_run())
+
     # --- Bedtime autoplay ---
 
     async def _run_bedtime_autoplay(for_esp32: bool):
@@ -877,6 +904,7 @@ async def websocket_unified(websocket: WebSocket, client_type: str = Query(defau
                         audio_buffer = audio_buffer[vad_frame_bytes:]
                         if vad.is_speech(frame, 16000):
                             if not is_speaking:
+                                await _cancel_current_response()
                                 is_speaking = True
                                 logger.info(f"{label} Speech started")
                             speech_frames.append(frame)
@@ -890,7 +918,7 @@ async def websocket_unified(websocket: WebSocket, client_type: str = Query(defau
                                 transcription = await pipeline.transcribe(b"".join(speech_frames))
                                 speech_frames.clear()
                                 silence_count = 0
-                                await process_transcription_and_respond(transcription, for_esp32=True)
+                                await _start_response_task(transcription, for_esp32=True)
                 elif "text" in message:
                     try:
                         data = json.loads(message["text"])
@@ -901,11 +929,13 @@ async def websocket_unified(websocket: WebSocket, client_type: str = Query(defau
                                 transcription = await pipeline.transcribe(b"".join(speech_frames))
                                 speech_frames.clear()
                                 silence_count = 0
-                                await process_transcription_and_respond(transcription, for_esp32=True)
+                                await _start_response_task(transcription, for_esp32=True)
                             elif msg == "INTERRUPT" and not _is_bedtime():
-                                cancel_event.set()
+                                await _cancel_current_response()
                                 speech_frames.clear()
                                 audio_buffer.clear()
+                                is_speaking = False
+                                silence_count = 0
                         if "system_prompt" in data:
                             session_system_prompt = data["system_prompt"]
                     except Exception:
@@ -921,30 +951,16 @@ async def websocket_unified(websocket: WebSocket, client_type: str = Query(defau
                         elif mt == "audio":
                             audio_buffer.extend(base64.b64decode(data["data"]))
                             if current_tts_task and not current_tts_task.done() and not _is_bedtime():
-                                cancel_event.set()
-                                try:
-                                    await current_tts_task
-                                except asyncio.CancelledError:
-                                    pass
-                                cancel_event.clear()
-                                current_tts_task = None
+                                await _cancel_current_response()
                         elif mt == "end_of_speech":
                             if audio_buffer:
                                 transcription = await pipeline.transcribe(bytes(audio_buffer))
                                 audio_buffer.clear()
                                 if transcription and transcription.strip():
-                                    async def _run(t=transcription):
-                                        try:
-                                            await process_transcription_and_respond(t, for_esp32=False)
-                                        except asyncio.CancelledError:
-                                            pass
-                                        except Exception as e:
-                                            logger.error(f"{label} Response error: {e}")
-                                            import traceback; traceback.print_exc()
-                                    current_tts_task = asyncio.create_task(_run())
+                                    await _start_response_task(transcription, for_esp32=False)
                         elif mt == "cancel":
                             if current_tts_task and not current_tts_task.done() and not _is_bedtime():
-                                cancel_event.set()
+                                await _cancel_current_response()
                             audio_buffer.clear()
                     except Exception as e:
                         logger.error(f"Error parsing message: {e}")
