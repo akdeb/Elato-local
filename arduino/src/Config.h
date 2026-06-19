@@ -26,24 +26,13 @@ enum DeviceState
 
 extern volatile DeviceState deviceState;
 
-// WiFi credentials
-extern const char *EAP_IDENTITY;
-extern const char *EAP_USERNAME;
-extern const char *EAP_PASSWORD;
-extern const char *ssid;
-
-extern const char *ssid_peronal;
-extern const char *password_personal;
-
 extern String authTokenGlobal;
 
 // WebSocket server details
-extern String ws_server_ip;  // Dynamically discovered via mDNS
+extern const char *ap_ssid;
+extern String ws_server_ip;
 extern const uint16_t ws_port;
 extern const char *ws_path;
-
-// mDNS discovery
-bool discoverElatoServer(String &outIp, uint16_t &outPort, int timeoutMs = 10000);
 
 // I2S and Audio parameters
 extern const uint32_t SAMPLE_RATE;

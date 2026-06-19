@@ -118,6 +118,20 @@ pub fn stop_api_server(app: &tauri::AppHandle) {
 
 #[tauri::command]
 pub async fn start_backend(app: AppHandle) -> Result<String, String> {
+    if let Some(state) = app.try_state::<ApiProcess>() {
+        if let Ok(mut guard) = state.0.lock() {
+            if let Some(child) = guard.as_mut() {
+                match child.try_wait() {
+                    Ok(None) => return Ok("Backend already starting".to_string()),
+                    Ok(Some(_)) => {
+                        guard.take();
+                    }
+                    Err(_) => return Ok("Backend already starting".to_string()),
+                }
+            }
+        }
+    }
+
     if TcpStream::connect_timeout(
         &"127.0.0.1:8000".parse().unwrap(),
         Duration::from_millis(100),
@@ -171,7 +185,13 @@ pub async fn start_backend(app: AppHandle) -> Result<String, String> {
         .map_err(|e| format!("Failed to start backend: {e}"))?;
 
     println!("[TAURI] Backend started after setup (PID: {})", child.id());
-    app.manage(ApiProcess(Mutex::new(Some(child))));
+    if let Some(state) = app.try_state::<ApiProcess>() {
+        if let Ok(mut guard) = state.0.lock() {
+            *guard = Some(child);
+        }
+    } else {
+        app.manage(ApiProcess(Mutex::new(Some(child))));
+    }
 
     Ok("Backend started".to_string())
 }

@@ -118,7 +118,7 @@ void audioStreamTask(void *parameter) {
     cfg.sample_rate = SAMPLE_RATE;
     cfg.channels = CHANNELS;
     cfg.bits_per_sample = BITS_PER_SAMPLE;
-    cfg.max_buffer_size = 6144;
+    cfg.max_buffer_size = 16384;
 
     xSemaphoreTake(wsMutex, portMAX_DELAY);
     opusDecoder.setOutput(bufferPrint);
@@ -253,7 +253,7 @@ void webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
     {
     case WStype_DISCONNECTED:
         Serial.printf("[WSc] Disconnected!\n");
-        deviceState = IDLE;
+        deviceState = SOFT_AP;
         break;
     case WStype_CONNECTED:
         Serial.printf("[WSc] Connected to url: %s\n", payload);
@@ -364,6 +364,10 @@ void websocketSetup(const String& server_domain, int port, const String& path)
     String headers = "Authorization: Bearer " + String(authTokenGlobal);
 
     xSemaphoreTake(wsMutex, portMAX_DELAY);
+
+    if (webSocket.isConnected()) {
+        webSocket.disconnect();
+    }
 
     webSocket.setExtraHeaders(headers.c_str());
     webSocket.onEvent(webSocketEvent);

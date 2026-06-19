@@ -2,8 +2,12 @@
 #include <driver/rtc_io.h>
 #include "LEDHandler.h"
 #include "Config.h"
+#include "Audio.h"
 #include "SPIFFS.h"
-#include "WifiManager.h"
+#include <WiFi.h>
+#include <WiFiClient.h>
+#include <esp_wifi.h>
+#include <esp_netif_sta_list.h>
 #include <driver/touch_sensor.h>
 #include "Button.h"
 #include "soc/soc.h"
@@ -16,8 +20,6 @@
 #define REQUIRED_RELEASE_CHECKS 100     // how many consecutive times we need "below threshold" to confirm release
 #define TOUCH_DEBOUNCE_DELAY 500 // milliseconds
 
-AsyncWebServer webServer(80);
-WIFIMANAGER WifiManager;
 esp_err_t getErr = ESP_OK;
 
 
@@ -120,36 +122,121 @@ void getAuthTokenFromNVS()
     preferences.end();
 }
 
+static bool getFirstApStationIp(IPAddress &stationIp)
+{
+    wifi_sta_list_t wifiStaList;
+    esp_netif_sta_list_t netifStaList;
+
+    if (esp_wifi_ap_get_sta_list(&wifiStaList) != ESP_OK || wifiStaList.num == 0) {
+        return false;
+    }
+
+    if (esp_netif_get_sta_list(&wifiStaList, &netifStaList) != ESP_OK || netifStaList.num == 0) {
+        return false;
+    }
+
+    stationIp = IPAddress(netifStaList.sta[0].ip.addr);
+    return true;
+}
+
+static bool serverReachable(const String &serverIp, uint16_t port)
+{
+    WiFiClient probe;
+    bool ok = probe.connect(serverIp.c_str(), port, 500);
+    if (ok) {
+        probe.stop();
+    }
+    return ok;
+}
+
+static bool findReachableServerPort(const String &serverIp, uint16_t &port)
+{
+    const uint16_t candidatePorts[] = {49320, 8000};
+
+    for (uint16_t candidatePort : candidatePorts) {
+        if (serverReachable(serverIp, candidatePort)) {
+            port = candidatePort;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+void wifiStationTask(void *parameter)
+{
+    String connectedServerIp = "";
+    uint16_t connectedServerPort = 0;
+
+    while (1) {
+        IPAddress stationIp;
+        if (getFirstApStationIp(stationIp)) {
+            String stationIpString = stationIp.toString();
+            uint16_t reachablePort = 0;
+
+            if (findReachableServerPort(stationIpString, reachablePort)) {
+                if (stationIpString != connectedServerIp || reachablePort != connectedServerPort || !webSocket.isConnected()) {
+                    connectedServerIp = stationIpString;
+                    connectedServerPort = reachablePort;
+                    ws_server_ip = stationIpString;
+                    deviceState = PROCESSING;
+
+                    Serial.printf("[WIFI] Mac joined ELATO at %s\n", ws_server_ip.c_str());
+                    Serial.printf("[WIFI] Connecting websocket client to ws://%s:%u%s\n",
+                                  ws_server_ip.c_str(),
+                                  connectedServerPort,
+                                  ws_path);
+
+                    websocketSetup(ws_server_ip, connectedServerPort, ws_path);
+                }
+            } else {
+                deviceState = SOFT_AP;
+                Serial.printf("[WIFI] Waiting for app server on %s ports 49320/8000\n", stationIpString.c_str());
+            }
+        } else if (connectedServerIp.length() > 0) {
+            Serial.println("[WIFI] Mac left ELATO; waiting for it to rejoin");
+            connectedServerIp = "";
+            connectedServerPort = 0;
+            ws_server_ip = "";
+            deviceState = SOFT_AP;
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
+}
+
 void setupWiFi()
 {
-    WifiManager.startBackgroundTask("ELATO");  // Run the background task to take care of our Wifi
-    WifiManager.fallbackToSoftAp(true);        // Run a SoftAP if no known AP can be reached
-    WifiManager.attachWebServer(&webServer);   // Attach our API to the Webserver 
-    WifiManager.attachUI();                    // Attach the UI to the Webserver
-  
-    // Run the Webserver and add your webpages to it
-    webServer.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
-        request->redirect("/wifi");
-    });
-    
-    // Catch-all handler for captive portal - redirect everything to WiFi config
-    webServer.onNotFound([](AsyncWebServerRequest *request) {
-      String host = request->host();
-      String url = request->url();
-      
-      Serial.printf("[CAPTIVE] Unknown request - Host: %s, URL: %s\n", host.c_str(), url.c_str());
-      
-      // For captive portal, redirect all requests except API calls
-      if (!url.startsWith("/api/")) {
-        Serial.println("[CAPTIVE] Redirecting to /wifi");
-      String portalUrl = "http://" + WiFi.softAPIP().toString() + "/wifi";
-      request->redirect(portalUrl);
-      } else {
-        request->send(404, "application/json", "{\"error\":\"Not found\"}");
-      }
-    });
-    
-    webServer.begin();
+    WiFi.mode(WIFI_AP);
+    WiFi.setSleep(false);
+
+    IPAddress apIp(192, 168, 4, 1);
+    IPAddress gateway(192, 168, 4, 1);
+    IPAddress subnet(255, 255, 255, 0);
+    if (!WiFi.softAPConfig(apIp, gateway, subnet)) {
+        Serial.println("[WIFI] Failed to configure ELATO AP network");
+    }
+
+    if (!WiFi.softAP(ap_ssid)) {
+        Serial.println("[WIFI] Failed to start ELATO access point");
+        deviceState = IDLE;
+        return;
+    }
+
+    deviceState = SOFT_AP;
+
+    Serial.printf("[WIFI] ELATO AP is open at %s\n", WiFi.softAPIP().toString().c_str());
+    Serial.printf("[WIFI] Join '%s' from the Mac, then open either app\n", ap_ssid);
+
+    xTaskCreatePinnedToCore(
+        wifiStationTask,
+        "WiFi Station Task",
+        4096,
+        NULL,
+        2,
+        NULL,
+        0
+    );
 }
 
 void touchTask(void* parameter) {
@@ -280,4 +367,5 @@ void setup()
 
 void loop(){
     processSleepRequest();
+    delay(10);
 }
