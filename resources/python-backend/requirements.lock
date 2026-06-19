@@ -20,4 +20,3 @@ huggingface-hub==1.6.0
 esptool==5.2.0
 pyserial==3.5
 av==16.0.1
-zeroconf==0.148.0

@@ -12,6 +12,25 @@ LLM = "mlx-community/Ministral-3-3B-Instruct-2512-4bit"
 TTS = "mlx-community/chatterbox-turbo-fp16"
 QWEN3_TTS = "mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit"
 
+
+def resolve_local_model_source(repo: str) -> str:
+    """Resolve an HF repo id to its already-downloaded local snapshot path.
+
+    Model loaders (mlx_lm / mlx_audio) skip the network when handed an existing
+    local path, but hit HF to re-check the revision when handed a repo id - which
+    blocks first playback when offline. We resolve cached models to their local
+    path (no network) and fall back to the repo id when it isn't downloaded yet,
+    so first-time online downloads still work.
+    """
+    if not repo or os.path.isdir(repo):
+        return repo
+    try:
+        from huggingface_hub import snapshot_download
+
+        return snapshot_download(repo, local_files_only=True)
+    except Exception:
+        return repo
+
 # ---------------------------------------------------------------------------
 # LLM / TTS helpers (shared by routes & server)
 # ---------------------------------------------------------------------------

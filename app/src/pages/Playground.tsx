@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
-import { Image as ImageIcon, Pencil, BookOpen, Moon, Maximize2, EyeOff, Eye, ChevronDown, ChevronRight, GalleryVertical } from 'lucide-react';
+import { Image as ImageIcon, Pencil, Moon, Maximize2, EyeOff, Eye, ChevronDown, ChevronRight, GalleryVertical } from 'lucide-react';
 import { useActiveUser } from '../state/ActiveUserContext';
 import { ExperienceModal, ExperienceForModal } from '../components/ExperienceModal';
 import { Link, useSearchParams } from 'react-router-dom';

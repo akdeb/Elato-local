@@ -12,6 +12,7 @@ const char *ws_path = "/ws/esp32";
 
 String authTokenGlobal;
 volatile DeviceState deviceState = IDLE;
+volatile bool apStationConnected = false;
 
 // I2S and Audio parameters
 const uint32_t SAMPLE_RATE = 48000;

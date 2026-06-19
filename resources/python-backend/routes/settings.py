@@ -26,6 +26,8 @@ async def startup_status():
         "ready": bool(seeded),
         "seeded": bool(seeded),
         "pipeline_ready": False,
+        "pipeline_loading": False,
+        "pipeline_error": None,
         "counts": {"voices": voices_n, "personalities": personalities_n},
     }
 

@@ -41,7 +41,11 @@ async def disconnect_device(request: Request):
     esp32_ws = getattr(request.app.state, "esp32_ws", None)
     if esp32_ws:
         try:
-            await esp32_ws.send_json({"type": "server", "msg": "SESSION.END"})
+            # Ending the chat should return the toy to its idle (white) connected
+            # state, not put it to sleep. keep_listening=False stops the hands-free
+            # VAD loop and idles the device; SESSION.END would deep-sleep it, so we
+            # avoid that here.
+            await esp32_ws.send_json({"type": "server", "msg": "RESPONSE.COMPLETE", "keep_listening": False})
         except Exception:
             pass
         try:
@@ -52,6 +56,24 @@ async def disconnect_device(request: Request):
     request.app.state.esp32_session_id = None
     status = db_service.db_service.update_esp32_device(
         {"ws_status": "disconnected", "ws_last_seen": time.time(), "session_id": None}
+    )
+    push_device_event(request.app, status)
+    return status
+
+
+@router.post("/device/start")
+async def start_device(request: Request):
+    esp32_ws = getattr(request.app.state, "esp32_ws", None)
+    if not esp32_ws:
+        raise HTTPException(status_code=409, detail="ESP32 is not connected")
+
+    start_event = getattr(request.app.state, "esp32_start_event", None)
+    if start_event is None:
+        raise HTTPException(status_code=503, detail="ESP32 start event is not ready")
+
+    start_event.set()
+    status = db_service.db_service.update_esp32_device(
+        {"ws_status": "connected", "ws_last_seen": time.time()}
     )
     push_device_event(request.app, status)
     return status

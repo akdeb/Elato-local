@@ -39,12 +39,6 @@ export const api = {
     return request(`/network-info`);
   },
 
-  restartMdns: async () => {
-    return request(`/restart-mdns`, {
-      method: "POST",
-    });
-  },
-
   startupStatus: async () => {
     return request(`/startup-status`);
   },
@@ -254,6 +248,12 @@ export const api = {
   },
   disconnectDevice: async () => {
     return request(`/device/disconnect`, {
+      method: "POST",
+    });
+  },
+
+  startDevice: async () => {
+    return request(`/device/start`, {
       method: "POST",
     });
   },

@@ -63,6 +63,24 @@ fn resolve_firmware_dir(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(firmware_dir)
 }
 
+fn resolve_assets_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    let assets_dir = if cfg!(debug_assertions) {
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let repo_root = manifest_dir
+            .parent()
+            .and_then(|p| p.parent())
+            .ok_or_else(|| "Failed to resolve repo root from CARGO_MANIFEST_DIR".to_string())?;
+        repo_root.join("app").join("src").join("assets")
+    } else {
+        app.path()
+            .resource_dir()
+            .map_err(|e| format!("Failed to resolve app resource dir: {e}"))?
+            .join("assets")
+    };
+
+    Ok(assets_dir)
+}
+
 pub fn ensure_port_free(port: u16) {
     let addr = ("127.0.0.1", port);
 
@@ -152,6 +170,7 @@ pub async fn start_backend(app: AppHandle) -> Result<String, String> {
     let elato_voices_dir = get_voices_dir(&app);
     let elato_images_dir = get_images_dir(&app);
     let firmware_dir = resolve_firmware_dir(&app)?;
+    let assets_dir = resolve_assets_dir(&app)?;
 
     ensure_port_free(8000);
 
@@ -174,6 +193,7 @@ pub async fn start_backend(app: AppHandle) -> Result<String, String> {
             elato_images_dir.to_string_lossy().to_string(),
         )
         .env("ELATO_FIRMWARE_DIR", firmware_dir.to_string_lossy().to_string())
+        .env("ELATO_ASSETS_DIR", assets_dir.to_string_lossy().to_string())
         .env("TOKENIZERS_PARALLELISM", "false")
         .env("HF_HUB_DISABLE_XET", "1")
         .env("HF_HUB_ENABLE_HF_TRANSFER", "1")
@@ -226,6 +246,7 @@ pub fn setup_backend(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Err
     let elato_images_dir = get_images_dir(&app_handle);
     println!("[TAURI] DB Path: {:?}", elato_db_path);
     let firmware_dir = resolve_firmware_dir(&app_handle)?;
+    let assets_dir = resolve_assets_dir(&app_handle)?;
 
     let mut cmd = Command::new(&python_path);
     cmd.arg("-m")
@@ -246,6 +267,7 @@ pub fn setup_backend(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Err
             elato_images_dir.to_string_lossy().to_string(),
         )
         .env("ELATO_FIRMWARE_DIR", firmware_dir.to_string_lossy().to_string())
+        .env("ELATO_ASSETS_DIR", assets_dir.to_string_lossy().to_string())
         .env("TOKENIZERS_PARALLELISM", "false")
         .env("HF_HUB_DISABLE_XET", "1")
         .env("HF_HUB_ENABLE_HF_TRANSFER", "1")

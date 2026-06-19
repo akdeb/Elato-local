@@ -6,6 +6,8 @@ import mlx.core as mx
 import soundfile as sf
 from mlx_audio.tts.utils import load_model as load_tts
 
+from utils import resolve_local_model_source
+
 class ChatterboxTTS:
     """Chatterbox Turbo TTS backend with voice cloning support."""
 
@@ -38,7 +40,7 @@ class ChatterboxTTS:
 
     def load(self) -> None:
         """Load the Chatterbox model and prepare conditionals if ref audio provided."""
-        self.model = load_tts(self.model_id)
+        self.model = load_tts(resolve_local_model_source(self.model_id))
 
         if self.ref_audio_path:
             self.model.prepare_conditionals(self.ref_audio_path)
@@ -123,7 +125,7 @@ class Qwen3TTS:
         last_err = None
         for repo in (self.model_id, "Qwen/Qwen3-TTS-12Hz-0.6B-Base"):
             try:
-                self.model = load_tts(repo)
+                self.model = load_tts(resolve_local_model_source(repo))
                 self.model_id = repo
                 break
             except Exception as e:

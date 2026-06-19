@@ -30,7 +30,8 @@
     "targets": "all",
     "resources": {
       "../../resources/python-backend": "python-backend",
-      "../../resources/firmware": "firmware"
+      "../../resources/firmware": "firmware",
+      "../src/assets": "assets"
     },
     "macOS": {
       "infoPlist": "./Info.plist",

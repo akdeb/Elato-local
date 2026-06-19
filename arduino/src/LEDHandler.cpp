@@ -302,6 +302,7 @@ void ledTask(void *parameter)
          switch (deviceState)
         {
         case IDLE:
+        case AP_CONNECTED:
             setStaticColor(StaticColor::WHITE);
             break;
         case SOFT_AP:

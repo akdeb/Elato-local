@@ -2,57 +2,31 @@ import json
 import logging
 import time
 import uuid
-import urllib.error
-import urllib.request
 from typing import List, Optional
 
 from .paths import assets_dir
 
 logger = logging.getLogger(__name__)
 
-ASSETS_BASE_URL = (
-    "https://raw.githubusercontent.com/akdeb/open-toys/main/app/src/assets"
-)
-VOICES_URL = f"{ASSETS_BASE_URL}/voices.json"
-EXPERIENCE_URLS = {
-    "personalities.json": f"{ASSETS_BASE_URL}/personalities.json",
-    "games.json": f"{ASSETS_BASE_URL}/games.json",
-    "stories.json": f"{ASSETS_BASE_URL}/stories.json",
-}
+EXPERIENCE_FILES = ("personalities.json", "games.json", "stories.json")
 
 
-def _load_json_from_url(url: str) -> Optional[object]:
-    try:
-        with urllib.request.urlopen(url, timeout=15) as response:
-            if response.status != 200:
-                logger.warning("Asset fetch failed (%s): HTTP %s", url, response.status)
-                return None
-            data = response.read().decode("utf-8")
-            return json.loads(data)
-    except (urllib.error.URLError, TimeoutError, ValueError) as exc:
-        logger.warning("Asset fetch failed (%s): %s", url, exc)
-        return None
-
-
-def _load_json_with_fallback(filename: str, url: str) -> Optional[object]:
-    payload = _load_json_from_url(url)
-    if payload is not None:
-        return payload
-
-    # Dev/local fallback only.
+def _load_local_json(filename: str) -> Optional[object]:
     local_path = assets_dir() / filename
-    if not local_path.exists():
-        return None
-    try:
-        return json.loads(local_path.read_text(encoding="utf-8"))
-    except Exception:
-        return None
+    if local_path.exists():
+        try:
+            return json.loads(local_path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            logger.warning("Local asset load failed (%s): %s", local_path, exc)
+    else:
+        logger.warning("Local asset missing: %s", local_path)
+    return None
 
 
 class SeedMixin:
     def sync_global_voices_and_experiences(self) -> None:
         """Sync voices and experiences (personalities, games, stories) from JSON assets."""
-        voices_payload = _load_json_with_fallback("voices.json", VOICES_URL)
+        voices_payload = _load_local_json("voices.json")
         if not isinstance(voices_payload, list):
             return
 
@@ -93,8 +67,8 @@ class SeedMixin:
                 )
 
         # Sync experiences from multiple JSON files
-        for filename, url in EXPERIENCE_URLS.items():
-            payload = _load_json_with_fallback(filename, url)
+        for filename in EXPERIENCE_FILES:
+            payload = _load_local_json(filename)
 
             if not isinstance(payload, list):
                 continue

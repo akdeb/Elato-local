@@ -20,6 +20,12 @@ volatile bool scheduleListeningRestart = false;
 unsigned long scheduledTime = 0;
 unsigned long speakingStartTime = 0;
 
+// If we sit in PROCESSING (green) this long without the server sending a
+// response, assume the turn was abandoned (e.g. the app was paused) and fall
+// back to the idle/connected (white) LED instead of staying stuck on green.
+unsigned long processingStartTime = 0;
+#define PROCESSING_TIMEOUT_MS 12000
+
 // AUDIO SETTINGS
 int currentVolume = 70;
 float currentPitchFactor = 1.0f;
@@ -253,11 +259,14 @@ void webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
     {
     case WStype_DISCONNECTED:
         Serial.printf("[WSc] Disconnected!\n");
+        // No websocket means "not ready" (pink), even if the Mac is still on the
+        // AP. The LED only goes white once WStype_CONNECTED fires again.
         deviceState = SOFT_AP;
+        processingStartTime = 0;
         break;
     case WStype_CONNECTED:
         Serial.printf("[WSc] Connected to url: %s\n", payload);
-        deviceState = PROCESSING;
+        deviceState = AP_CONNECTED;
         break;
     case WStype_TEXT:
     {
@@ -309,10 +318,20 @@ void webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
 
             if (strcmp((char*)msg.c_str(), "RESPONSE.COMPLETE") == 0 || strcmp((char*)msg.c_str(), "RESPONSE.ERROR") == 0) {
                 Serial.println("Received RESPONSE.COMPLETE or RESPONSE.ERROR, starting listening again");
-                scheduleListeningRestart = true;
-                scheduledTime = millis() + 1000; // 1 second delay
+                processingStartTime = 0;
+                // keep_listening drives the hands-free loop: true (default) re-opens
+                // the mic so server VAD can take the next turn; false stops and idles.
+                bool keepListening = doc["keep_listening"] | true;
+                if (keepListening) {
+                    scheduleListeningRestart = true;
+                    scheduledTime = millis() + 1000; // 1 second delay
+                } else {
+                    scheduleListeningRestart = false;
+                    deviceState = AP_CONNECTED;
+                }
             } else if (strcmp((char*)msg.c_str(), "AUDIO.COMMITTED") == 0) {
-                deviceState = PROCESSING; 
+                deviceState = PROCESSING;
+                processingStartTime = millis();
             } else if (strcmp((char*)msg.c_str(), "RESPONSE.CREATED") == 0) {
                 Serial.println("Received RESPONSE.CREATED, transitioning to speaking");
 
@@ -386,6 +405,15 @@ void networkTask(void *parameter) {
         if (scheduleListeningRestart && millis() >= scheduledTime) {
             Serial.println("FOOBAR: Transitioning to listening mode");
             transitionToListening();
+        }
+
+        // Watchdog: if we've been stuck in PROCESSING (green) with no response,
+        // fall back to the idle/connected (white) state.
+        if (deviceState == PROCESSING && processingStartTime > 0 &&
+            (millis() - processingStartTime) > PROCESSING_TIMEOUT_MS) {
+            Serial.println("[WD] PROCESSING timed out, returning to idle (white)");
+            deviceState = AP_CONNECTED;
+            processingStartTime = 0;
         }
 
         webSocket.loop();

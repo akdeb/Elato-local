@@ -4,7 +4,7 @@ import { useActiveUser } from '../state/ActiveUserContext';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useEffect, useState } from 'react';
-import { Bot, X, RefreshCw, Download } from 'lucide-react';
+import { X, Download, Laptop, Play } from 'lucide-react';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { VoiceWsProvider, useVoiceWs } from '../state/VoiceWsContext';
 import { globalPersonalityImageUrl, versionedRemoteUrl } from '../lib/remoteAssets';
@@ -23,12 +23,7 @@ const LayoutInner = () => {
   const [deviceConnected, setDeviceConnected] = useState<boolean>(false);
   const [deviceSessionId, setDeviceSessionId] = useState<string | null>(null);
   const [downloadedVoiceIds, setDownloadedVoiceIds] = useState<Set<string>>(new Set());
-  const [isRefreshing, setIsRefreshing] = useState(false);
-
-  // Network monitoring
-  const [initialIp, setInitialIp] = useState<string | null>(null);
-  const [showNetworkBanner, setShowNetworkBanner] = useState(false);
-
+  const [isStartingDevice, setIsStartingDevice] = useState(false);
   const personalityImageSrc = (p: any) => {
     if (!p) return null;
     if (p?.is_global) {
@@ -40,31 +35,6 @@ const LayoutInner = () => {
     if (/^https?:\/\//i.test(src)) return versionedRemoteUrl(src);
     return convertFileSrc(src);
   };
-
-  useEffect(() => {
-    let cancelled = false;
-    const checkIp = async () => {
-      try {
-        const info = await api.getNetworkInfo();
-        if (cancelled) return;
-        
-        if (!initialIp) {
-          setInitialIp(info.ip);
-        } else if (info.ip !== initialIp) {
-          setShowNetworkBanner(true);
-        }
-      } catch {
-        // ignore errors
-      }
-    };
-
-    checkIp();
-    const interval = setInterval(checkIp, 30000);
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, [initialIp]);
 
   const localActive = voiceWs.isActive;
   const sessionActive = deviceConnected || localActive;
@@ -250,32 +220,6 @@ const LayoutInner = () => {
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-(--color-retro-bg)">
-      {showNetworkBanner && (
-        <div className="bg-(--color-retro-blue) text-white px-4 py-3 flex items-center justify-between shadow-md z-50 shrink-0 border-b-2 border-black">
-          <div className="font-mono text-sm flex items-center gap-2">
-            <RefreshCw size={16} />
-            <span>
-              <strong>WiFi Change Detected: Refresh your app so your toy can find you.</strong>
-            </span>
-          </div>
-          <button
-            disabled={isRefreshing}
-            onClick={async () => {
-              try {
-                setIsRefreshing(true);
-                await api.restartMdns();
-              } catch (e) {
-                console.error("Failed to restart mDNS:", e);
-              }
-              setIsRefreshing(false);
-              window.location.reload();
-            }}
-            className="retro-btn retro-btn-outline no-lift px-3 py-1.5 text-xs uppercase font-bold flex items-center gap-2"
-          >
-            Refresh
-          </button>
-        </div>
-      )}
       <div className="flex flex-1 min-h-0 overflow-hidden">
         <Sidebar />
         <main className={`flex-1 min-h-0 overflow-y-auto ${location.pathname === '/test' ? 'p-0 pb-36' : 'p-8 pb-36'}`}>
@@ -309,32 +253,52 @@ const LayoutInner = () => {
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="flex flex-col items-end">
-                    {!localActive && !deviceConnected && (
-                      <button
-                        type="button"
-                        className="retro-btn retro-btn-purple no-lift px-4 py-2 text-sm flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
-                        onClick={() => {
-                          if (needsVoiceDownload && activeVoiceId) {
-                            navigate(`/voices?voice_id=${encodeURIComponent(String(activeVoiceId))}`);
-                            return;
-                          }
-                          if (!canStartChat) return;
-                          navigate('/test');
-                          voiceWs.connect();
-                        }}
-                        disabled={!canStartChat && !needsVoiceDownload}
-                      >
-                        {needsVoiceDownload ? <Download size={18} className="shrink-0" /> : <Bot size={18} className="shrink-0" />} {needsVoiceDownload ? 'Download voice' : 'Preview'}
-                      </button>
-                    )}
-                    {!localActive && deviceConnected && !isEsp32View && (
-                      <button
-                        type="button"
-                        className="retro-btn retro-btn-green no-lift px-4 py-2 text-sm flex items-center gap-2 animate-pulse"
-                        onClick={() => navigate('/test?view=esp32')}
-                      >
-                        <Bot size={18} className="shrink-0" /> View
-                      </button>
+                    {!localActive && !isEsp32View && (
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          className="retro-btn retro-btn-green no-lift px-5 py-2 text-sm flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                          onClick={async () => {
+                            if (needsVoiceDownload && activeVoiceId) {
+                              navigate(`/voices?voice_id=${encodeURIComponent(String(activeVoiceId))}`);
+                              return;
+                            }
+                            if (!deviceConnected || !canStartChat || isStartingDevice) return;
+                            try {
+                              setIsStartingDevice(true);
+                              await api.startDevice();
+                              navigate('/test?view=esp32');
+                            } catch (e) {
+                              console.error("Failed to start ESP32 session:", e);
+                            } finally {
+                              setIsStartingDevice(false);
+                            }
+                          }}
+                          disabled={(!deviceConnected || !canStartChat || isStartingDevice) && !needsVoiceDownload}
+                          title={deviceConnected ? "Start on ESP32" : "Connect your Mac to ELATO first"}
+                        >
+                          {needsVoiceDownload ? <Download size={18} className="shrink-0" /> : <Play fill="currentColor" size={18} className="shrink-0" />}
+                          {needsVoiceDownload ? 'Download voice' : isStartingDevice ? 'Starting' : 'Play'}
+                        </button>
+                        <button
+                          type="button"
+                          className="retro-btn retro-btn-purple no-lift w-11 h-11 p-0 flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed"
+                          onClick={() => {
+                            if (needsVoiceDownload && activeVoiceId) {
+                              navigate(`/voices?voice_id=${encodeURIComponent(String(activeVoiceId))}`);
+                              return;
+                            }
+                            if (!canStartChat) return;
+                            navigate('/test');
+                            voiceWs.connect();
+                          }}
+                          disabled={!canStartChat && !needsVoiceDownload}
+                          title="Preview on laptop"
+                          aria-label="Preview on laptop"
+                        >
+                          {needsVoiceDownload ? <Download size={18} className="shrink-0" /> : <Laptop size={18} className="shrink-0" />}
+                        </button>
+                      </div>
                     )}
                     {!localActive && deviceConnected && isEsp32View && (
                       <button

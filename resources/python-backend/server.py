@@ -5,7 +5,6 @@ import json
 import logging
 import os
 import re
-import socket
 import sys
 import time
 import uuid
@@ -37,7 +36,6 @@ from engine.prompts import (
 )
 from services import (
     ConnectionManager,
-    MdnsService,
     VoicePipeline,
     get_local_ip,
     resolve_voice_ref_audio_path,
@@ -57,57 +55,9 @@ GAIN_DB = 7.0
 CEILING = 0.89
 
 manager = ConnectionManager()
-mdns_service = MdnsService()
 
 
-def _start_mdns_service(server_port: int) -> None:
-    try:
-        mdns_service.start(server_port)
-    except Exception as exc:
-        mdns_service.enabled = False
-        try:
-            mdns_service.current_ip = get_local_ip()
-        except Exception:
-            pass
-        logger.warning("mDNS start failed: %s", exc)
-
-
-# ---------------------------------------------------------------------------
-# Lifespan
-# ---------------------------------------------------------------------------
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    app.state.pipeline_ready = False
-    app.state.esp32_ws = None
-    app.state.esp32_session_id = None
-    app.state.device_watchers = set()
-
-    server_port = getattr(app.state, "server_port", 8000)
-    asyncio.create_task(asyncio.to_thread(_start_mdns_service, server_port))
-
-    async def broadcast_server():
-        ip = get_local_ip()
-        if ip.startswith("127."):
-            return
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        msg = f"ELATO_SERVER {ip} {server_port}".encode("utf-8")
-        while True:
-            try:
-                sock.sendto(msg, ("255.255.255.255", 1900))
-            except Exception:
-                pass
-            await asyncio.sleep(2)
-
-    udp_task = asyncio.create_task(broadcast_server())
-    logger.info("Database service active")
-
-    try:
-        db_service.db_service.sync_global_voices_and_personalities()
-    except Exception as e:
-        logger.warning(f"Global assets sync failed: {e}")
-
+def _configure_pipeline_defaults(app: FastAPI) -> None:
     if not hasattr(app.state, "stt_model"):
         app.state.stt_model = STT
     if not hasattr(app.state, "llm_model"):
@@ -126,27 +76,69 @@ async def lifespan(app: FastAPI):
     if not hasattr(app.state, "output_sample_rate"):
         app.state.output_sample_rate = 24_000
 
-    safe_interval = max(1.5, float(app.state.streaming_interval))
 
-    pipeline = VoicePipeline(
-        stt_model=app.state.stt_model,
-        llm_model=app.state.llm_model,
-        tts_ref_audio=None,
-        tts_backend=app.state.tts_backend,
-        silence_threshold=app.state.silence_threshold,
-        silence_duration=app.state.silence_duration,
-        streaming_interval=safe_interval,
-        output_sample_rate=app.state.output_sample_rate,
-    )
-    await pipeline.init_models()
-    app.state.pipeline = pipeline
-    logger.info("Voice pipeline initialized")
-    app.state.pipeline_ready = True
+async def ensure_voice_pipeline(app: FastAPI) -> VoicePipeline:
+    pipeline = getattr(app.state, "pipeline", None)
+    if pipeline:
+        return pipeline
+
+    async with app.state.pipeline_init_lock:
+        pipeline = getattr(app.state, "pipeline", None)
+        if pipeline:
+            return pipeline
+
+        _configure_pipeline_defaults(app)
+        safe_interval = max(1.5, float(app.state.streaming_interval))
+        pipeline = VoicePipeline(
+            stt_model=app.state.stt_model,
+            llm_model=app.state.llm_model,
+            tts_ref_audio=None,
+            tts_backend=app.state.tts_backend,
+            silence_threshold=app.state.silence_threshold,
+            silence_duration=app.state.silence_duration,
+            streaming_interval=safe_interval,
+            output_sample_rate=app.state.output_sample_rate,
+        )
+        app.state.pipeline_loading = True
+        try:
+            await pipeline.init_models()
+        except Exception as exc:
+            app.state.pipeline_error = str(exc)
+            raise
+        finally:
+            app.state.pipeline_loading = False
+        app.state.pipeline = pipeline
+        logger.info("Voice pipeline initialized")
+        app.state.pipeline_ready = True
+        app.state.pipeline_error = None
+        return pipeline
+
+
+# ---------------------------------------------------------------------------
+# Lifespan
+# ---------------------------------------------------------------------------
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    app.state.pipeline_ready = False
+    app.state.pipeline_loading = False
+    app.state.pipeline_error = None
+    app.state.pipeline = None
+    app.state.pipeline_init_lock = asyncio.Lock()
+    app.state.esp32_ws = None
+    app.state.esp32_session_id = None
+    app.state.esp32_start_event = asyncio.Event()
+    app.state.device_watchers = set()
+    logger.info("Database service active")
+
+    try:
+        db_service.db_service.sync_global_voices_and_personalities()
+    except Exception as e:
+        logger.warning(f"Global assets sync failed: {e}")
+
+    _configure_pipeline_defaults(app)
     yield
     logger.info("Shutting down...")
-    mdns_service.stop()
-    if udp_task:
-        udp_task.cancel()
 
 
 # ---------------------------------------------------------------------------
@@ -170,17 +162,7 @@ app.include_router(api_router)
 async def network_info():
     return {
         "ip": get_local_ip(),
-        "advertising_ip": mdns_service.current_ip,
-        "mdns_enabled": mdns_service.enabled,
     }
-
-
-@app.post("/restart-mdns")
-async def restart_mdns():
-    server_port = getattr(app.state, "server_port", 8000)
-    mdns_service.stop()
-    asyncio.create_task(asyncio.to_thread(_start_mdns_service, server_port))
-    return {"status": "starting", "ip": mdns_service.current_ip}
 
 
 @app.get("/startup-status")
@@ -189,10 +171,13 @@ async def startup_status():
     personalities_n = db_service.db_service.get_table_count("personalities")
     seeded = bool(getattr(db_service.db_service, "seeded_ok", False))
     pipeline_ready = bool(getattr(app.state, "pipeline_ready", False))
+    pipeline_loading = bool(getattr(app.state, "pipeline_loading", False))
     return {
-        "ready": bool(seeded and pipeline_ready),
+        "ready": bool(seeded),
         "seeded": bool(seeded),
         "pipeline_ready": bool(pipeline_ready),
+        "pipeline_loading": bool(pipeline_loading),
+        "pipeline_error": getattr(app.state, "pipeline_error", None),
         "counts": {"voices": voices_n, "personalities": personalities_n},
     }
 
@@ -229,15 +214,55 @@ async def websocket_unified(websocket: WebSocket, client_type: str = Query(defau
 
     is_esp32 = client_type == CLIENT_TYPE_ESP32
     label = "[ESP32]" if is_esp32 else "[Desktop]"
-    pipeline: VoicePipeline = getattr(app.state, "pipeline", None)
 
     if is_esp32:
         await websocket.accept()
         app.state.esp32_ws = websocket
+        try:
+            status = db_service.db_service.update_esp32_device(
+                {"ws_status": "connected", "ws_last_seen": time.time(), "session_id": None}
+            )
+            push_device_event(app, status)
+        except Exception:
+            pass
+
+        try:
+            raw_volume = db_service.db_service.get_setting("laptop_volume")
+            initial_volume = int(raw_volume) if raw_volume is not None else 100
+        except Exception:
+            initial_volume = 100
+        with suppress(Exception):
+            await websocket.send_json({"type": "auth", "volume_control": initial_volume, "pitch_factor": 1.0, "is_ota": False, "is_reset": False})
+
+        start_event = getattr(app.state, "esp32_start_event", None)
+        while start_event is not None:
+            receive_task = asyncio.create_task(websocket.receive())
+            start_task = asyncio.create_task(start_event.wait())
+            done, pending = await asyncio.wait({receive_task, start_task}, return_when=asyncio.FIRST_COMPLETED)
+            for task in pending:
+                task.cancel()
+                with suppress(asyncio.CancelledError, Exception):
+                    await task
+
+            if start_task in done:
+                start_event.clear()
+                break
+
+            message = receive_task.result()
+            if message.get("type") == "websocket.disconnect":
+                app.state.esp32_ws = None
+                status = db_service.db_service.update_esp32_device(
+                    {"ws_status": "disconnected", "ws_last_seen": time.time(), "session_id": None}
+                )
+                push_device_event(app, status)
+                return
     else:
         await manager.connect(websocket)
 
-    if not pipeline:
+    try:
+        pipeline = await ensure_voice_pipeline(app)
+    except Exception as exc:
+        logger.error("Voice pipeline init failed: %s", exc)
         await websocket.close()
         return
 

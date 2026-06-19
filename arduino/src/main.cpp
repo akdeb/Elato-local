@@ -182,6 +182,8 @@ void wifiStationTask(void *parameter)
     while (1) {
         IPAddress stationIp;
         if (getFirstApStationIp(stationIp)) {
+            apStationConnected = true;
+
             String stationIpString = stationIp.toString();
             uint16_t reachablePort = 0;
 
@@ -190,7 +192,9 @@ void wifiStationTask(void *parameter)
                     connectedServerIp = stationIpString;
                     connectedServerPort = reachablePort;
                     ws_server_ip = stationIpString;
-                    deviceState = PROCESSING;
+                    // Stay "connecting" (pink) until the websocket actually opens;
+                    // WStype_CONNECTED is what turns the LED white (AP_CONNECTED).
+                    deviceState = SOFT_AP;
 
                     Serial.printf("[WIFI] Mac joined ELATO at %s\n", ws_server_ip.c_str());
                     Serial.printf("[WIFI] Connecting websocket client to ws://%s:%u%s\n",
@@ -206,9 +210,13 @@ void wifiStationTask(void *parameter)
             }
         } else if (connectedServerIp.length() > 0) {
             Serial.println("[WIFI] Mac left ELATO; waiting for it to rejoin");
+            apStationConnected = false;
             connectedServerIp = "";
             connectedServerPort = 0;
             ws_server_ip = "";
+            deviceState = SOFT_AP;
+        } else {
+            apStationConnected = false;
             deviceState = SOFT_AP;
         }
 

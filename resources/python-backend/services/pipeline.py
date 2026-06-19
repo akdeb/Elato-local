@@ -13,7 +13,7 @@ from mlx_lm.utils import load as load_llm
 from mlx_audio.stt import load as load_stt
 
 from tts import ChatterboxTTS, Qwen3TTS
-from utils import STT, LLM, TTS, QWEN3_TTS
+from utils import STT, LLM, TTS, QWEN3_TTS, resolve_local_model_source
 
 try:
     from mlx_vlm import generate as mx_vlm_generate
@@ -124,11 +124,15 @@ class VoicePipeline:
         self.llm, self.tokenizer, self.llm_backend = await self.load_llm_backend(
             self.llm_model
         )
-        self.stt = await asyncio.to_thread(lambda: load_stt(self.stt_model_id, strict=False))
+        self.stt = await asyncio.to_thread(lambda: load_stt(resolve_local_model_source(self.stt_model_id), strict=False))
         await self._init_tts()
 
     def _load_llm_backend_sync(self, model_repo: str):
-        if _is_vision_model(model_repo):
+        # Prefer the already-downloaded local snapshot so loading works offline and
+        # skips the HF revision check (vision check below still keys off the repo id).
+        is_vision = _is_vision_model(model_repo)
+        model_repo = resolve_local_model_source(model_repo)
+        if is_vision:
             if load_vlm is None:
                 raise RuntimeError(
                     "Model is marked vision=true in llms.json but mlx-vlm is unavailable. "
