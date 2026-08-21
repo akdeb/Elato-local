@@ -78,9 +78,9 @@ export const ChatTranscript = ({
   return (
     <div className={`bg-transparent border-0 shadow-none rounded-none ${className}`}>
       {messages.length === 0 ? (
-        <div className="p-8 text-center font-mono text-gray-500">{emptyLabel}</div>
+        <div className="p-8 text-center label-mono">{emptyLabel}</div>
       ) : (
-        <div className="p-4 space-y-3">
+        <div className="p-4 space-y-2.5">
           {messages.map((entry) => {
             const isAi = entry.role === "ai";
             const isLastAi = isAi && entry.id === lastAiId;
@@ -92,9 +92,7 @@ export const ChatTranscript = ({
                 className={`flex ${isAi ? "justify-start" : "justify-end"}`}
               >
                 <div
-                  className={`max-w-[78%] rounded-2xl px-4 py-3 ${
-                    isAi ? "bg-[#f0f0f0] text-gray-900" : "bg-purple-400 text-white"
-                  }`}
+                  className={`chat-bubble ${isAi ? "chat-bubble-ai" : "chat-bubble-user"}`}
                   style={
                     isAi && isLive
                       ? {
@@ -104,18 +102,18 @@ export const ChatTranscript = ({
                       : undefined
                   }
                 >
-                  <div className={`text-[10px] font-bold uppercase tracking-wider mb-1 ${isAi ? "text-gray-600" : "text-white/80"}`}>
-                    {isAi ? "AI" : "You"}
+                  <div className={`chat-role mb-1 ${isAi ? "text-[var(--color-retro-accent)]" : "text-white/50"}`}>
+                    {isAi ? "ai" : "you"}
                   </div>
-                  <div className="font-medium leading-relaxed whitespace-pre-wrap">
+                  <div className="whitespace-pre-wrap">
                     {isAi && progressiveAi ? (
                       <ProgressiveAiText text={entry.text} enabled />
                     ) : (
                       entry.text
                     )}
                   </div>
-                  <div className={`mt-2 font-mono text-[10px] text-right ${isAi ? "text-gray-500" : "text-white/80"}`}>
-                    {new Date(entry.timestamp).toLocaleString()}
+                  <div className={`chat-time mt-1.5 text-right ${isAi ? "text-gray-400" : "text-white/40"}`}>
+                    {new Date(entry.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
                   </div>
                 </div>
               </div>

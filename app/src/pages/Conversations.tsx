@@ -190,7 +190,7 @@ export const Conversations = () => {
   return (
     <div>
       <div className="flex items-center justify-between mb-8">
-        <h2 className="text-3xl font-black">CONVERSATIONS</h2>
+        <h2 className="font-display text-2xl font-bold">Conversations</h2>
         {selectedSessionId && (
           <button
             type="button"
@@ -217,8 +217,8 @@ export const Conversations = () => {
         <div className="retro-card font-mono text-sm mb-4">Loading…</div>
       )}
       {error && !loading && (
-        <div className="bg-white border-2 border-black rounded-[18px] px-4 py-4 mb-4 retro-shadow-sm">
-          <div className="text-xs font-bold uppercase tracking-wider text-red-700">Error</div>
+        <div className="bg-white border border-gray-200 rounded-[8px] px-4 py-4 mb-4 retro-shadow-sm">
+          <div className="label-mono text-red-700">Error</div>
           <div className="font-mono text-sm text-gray-800 mt-2 wrap-break-word">{error}</div>
           <div className="font-mono text-[11px] text-gray-500 mt-2">
             Check that the API server is running and that your UI is pointing at the correct base URL.
@@ -237,7 +237,7 @@ export const Conversations = () => {
             <button
               key={s.id}
               type="button"
-              className="retro-card border-0 w-full text-left bg-white rounded-[18px] px-4 py-4 hover:bg-[#fff3b0] transition-colors"
+              className="retro-card border-0 w-full text-left bg-white rounded-[8px] px-4 py-4 hover:border-gray-300 hover:bg-gray-50 transition-colors"
               onClick={() => openSession(s.id)}
             >
               <div className="flex items-center justify-between gap-4">
@@ -258,7 +258,7 @@ export const Conversations = () => {
                     className="shrink-0"
                   />
                   <div className="min-w-0">
-                    <div className="text-xs font-bold uppercase tracking-wider">Chat</div>
+                    <div className="label-mono">Chat</div>
                     <div className="font-mono text-sm text-gray-900 truncate">
                       {(s?.user_id ? (userNameById[s.user_id] || 'User') : 'User') + ' <> ' + (s?.personality_id ? (personalityNameById[s.personality_id] || 'Personality') : 'Personality')}
                     </div>
@@ -268,7 +268,7 @@ export const Conversations = () => {
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-xs font-bold uppercase tracking-wider">Mode</div>
+                  <div className="label-mono">Mode</div>
                   <div className="font-mono text-xs text-gray-700">{s.client_type}</div>
                   <div className="mt-2 font-mono text-md text-gray-500">
                     {typeof s.duration_sec === 'number' ? formatDuration(s.duration_sec) : ''}
@@ -280,7 +280,7 @@ export const Conversations = () => {
 
           {sessions.length === 0 && (
             <div className="retro-card p-10 text-center">
-              <div className="text-xl font-black uppercase">No conversations yet</div>
+              <div className="font-display text-lg font-bold uppercase">No conversations yet</div>
               <div className="font-mono text-sm text-gray-600 mt-3">
                 Chat with the models to create a conversation, then come back here to view it.
               </div>

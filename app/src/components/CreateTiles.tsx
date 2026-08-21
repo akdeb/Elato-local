@@ -13,24 +13,21 @@ const TILE_CONFIG: Array<{
   kind: CreateTileKind;
   label: string;
   helper: string;
-  bgClass: string;
-  shadowColor: string;
+  accent: string;
   Icon: React.ComponentType<{ size?: number; className?: string }>;
 }> = [
   {
     kind: "character",
     label: "Character",
     helper: "Create a storytelling experience",
-    bgClass: "!bg-yellow-300",
-    shadowColor: "#facc15",
+    accent: "var(--color-retro-accent)",
     Icon: MessageCircle,
   },
   {
     kind: "voice",
     label: "Voice",
     helper: "Clone a voice",
-    bgClass: "!bg-red-400",
-    shadowColor: "#ef4444",
+    accent: "var(--color-retro-orange)",
     Icon: Mic,
   },
 ];
@@ -43,18 +40,21 @@ export const CreateTiles = ({
   const tiles = includeVoice ? TILE_CONFIG : TILE_CONFIG.filter((t) => t.kind !== "voice");
 
   return (
-    <div className="grid grid-cols-2 gap-4">
-      {tiles.map(({ kind, label, helper, bgClass, shadowColor, Icon }) => (
+    <div className="grid grid-cols-2 gap-3">
+      {tiles.map(({ kind, label, helper, accent, Icon }) => (
         <button
           key={kind}
           type="button"
-          className={`retro-btn w-full text-base flex-col gap-2 text-black ${bgClass}`}
-          style={{ ["--shadow-color" as any]: shadowColor }}
+          className="retro-card w-full text-left flex flex-col gap-2 p-4 hover:border-gray-300 transition-colors cursor-pointer"
           onClick={() => onSelect(kind)}
         >
-          <Icon size={iconSize} className="shrink-0" />
-          <span className="inline-flex items-center uppercase text-sm gap-2">{label}</span>
-          <span className="text-xs font-medium opacity-80">{helper}</span>
+          <span className="shrink-0" style={{ color: accent }}>
+            <Icon size={iconSize} />
+          </span>
+          <span className="label-mono" style={{ color: "var(--ink)" }}>
+            {label}
+          </span>
+          <span className="text-xs text-gray-500">{helper}</span>
         </button>
       ))}
     </div>

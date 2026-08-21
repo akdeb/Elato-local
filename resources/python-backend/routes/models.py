@@ -99,15 +99,15 @@ async def switch_model(request: Request, body: ModelSwitchRequest):
                 return os.path.join(str(HF_HUB_CACHE), f"models--{model_repo.replace('/', '--')}")
 
             def _cache_bytes(base_dir: str) -> int:
+                # blobs only: everything under snapshots/ is a symlink back into
+                # blobs/, so walking both counts every finished file twice.
                 total = 0
-                for sub in ("blobs", "snapshots"):
-                    d = os.path.join(base_dir, sub)
-                    if not os.path.isdir(d):
-                        continue
+                d = os.path.join(base_dir, "blobs")
+                if os.path.isdir(d):
                     for root, _, files in os.walk(d):
                         for fn in files:
                             try:
-                                total += os.stat(os.path.join(root, fn)).st_size
+                                total += os.lstat(os.path.join(root, fn)).st_size
                             except Exception:
                                 pass
                 return total
@@ -135,8 +135,12 @@ async def switch_model(request: Request, body: ModelSwitchRequest):
                 except Exception:
                     return 0
 
-            def _total_cache_bytes() -> int:
-                return _cache_bytes(_repo_cache_dir()) + _xet_cache_bytes()
+            def _downloaded_bytes() -> int:
+                # The repo cache belongs to this download alone, so its bytes are the
+                # progress outright -- that is what lets a resumed download pick up at
+                # the percentage it stopped at instead of restarting the bar at 0.
+                # Only the xet cache is shared across repos, so it gets a baseline.
+                return _cache_bytes(_repo_cache_dir()) + max(0, _xet_cache_bytes() - baseline_bytes[0])
 
             def _compute_expected_total() -> int | None:
                 try:
@@ -152,29 +156,24 @@ async def switch_model(request: Request, body: ModelSwitchRequest):
 
             def download_model():
                 try:
-                    os.environ["HF_HUB_DISABLE_XET"] = "1"
-                    os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
-                    os.environ["HF_XET_DISABLE"] = "1"
-                    os.environ["HF_HUB_DISABLE_HF_XET"] = "1"
                     expected_total_bytes[0] = _compute_expected_total()
                     download_path[0] = snapshot_download(
-                        repo_id=model_repo, local_files_only=False,
-                        resume_download=True, max_workers=4,
+                        repo_id=model_repo, local_files_only=False, max_workers=4,
                     )
                 except Exception as e:
                     download_error[0] = str(e)
                 finally:
                     download_complete.set()
 
+            baseline_bytes[0] = _xet_cache_bytes()
             download_thread = threading.Thread(target=download_model)
             download_thread.start()
 
             stall_seconds = 300
-            baseline_bytes[0] = _total_cache_bytes()
             while not download_complete.is_set():
                 await asyncio.sleep(1.0)
                 elapsed = asyncio.get_event_loop().time() - start_time[0]
-                current_bytes = max(0, _total_cache_bytes() - baseline_bytes[0])
+                current_bytes = _downloaded_bytes()
                 if current_bytes != last_bytes[0]:
                     last_bytes[0] = current_bytes
                     last_change_monotonic[0] = time.monotonic()
@@ -208,8 +207,24 @@ async def switch_model(request: Request, body: ModelSwitchRequest):
             yield json.dumps({"stage": "loading", "progress": 0.0, "message": "Loading model weights..."}) + "\n"
 
             try:
+                # The pipeline is built lazily on the first chat session, so a switch
+                # made before that has nothing to hot-swap. Record the choice and let
+                # the pipeline pick it up when it starts, rather than failing after a
+                # multi-gigabyte download. app.state carries the value that
+                # ensure_voice_pipeline() actually reads, so it has to move too.
                 if not pipeline:
-                    raise RuntimeError("Pipeline not initialized")
+                    db_service.db_service.set_setting("llm_model", model_repo)
+                    request.app.state.llm_model = model_repo
+                    yield json.dumps({
+                        "stage": "loading", "progress": 1.0,
+                        "message": "Model downloaded. It loads when you start a session.",
+                    }) + "\n"
+                    yield json.dumps({
+                        "stage": "complete", "progress": 1.0,
+                        "message": f"Switched to {model_repo}",
+                    }) + "\n"
+                    return
+
                 new_llm, new_tokenizer, new_backend = await pipeline.load_llm_backend(model_repo)
                 yield json.dumps({"stage": "loading", "progress": 0.5, "message": "Model loaded, swapping..."}) + "\n"
 
@@ -255,7 +270,7 @@ async def switch_tts_model(request: Request, body: TtsSwitchRequest):
             from huggingface_hub import snapshot_download
 
             try:
-                snapshot_download(repo_id=target_repo, local_files_only=False, resume_download=True, max_workers=4)
+                snapshot_download(repo_id=target_repo, local_files_only=False, max_workers=4)
             except Exception as e:
                 yield json.dumps({"stage": "error", "error": f"Download failed: {e}"}) + "\n"
                 return
@@ -263,8 +278,14 @@ async def switch_tts_model(request: Request, body: TtsSwitchRequest):
             yield json.dumps({"stage": "downloading", "progress": 1.0, "message": "Download complete!"}) + "\n"
             yield json.dumps({"stage": "loading", "progress": 0.0, "message": "Loading TTS weights..."}) + "\n"
 
+            # Same as the LLM switch: with no pipeline yet, persist and move on.
             if not pipeline:
-                yield json.dumps({"stage": "error", "error": "Pipeline not initialized"}) + "\n"
+                db_service.db_service.set_setting("tts_backend", normalized_backend)
+                request.app.state.tts_backend = normalized_backend
+                yield json.dumps({
+                    "stage": "complete", "progress": 1.0,
+                    "message": f"Switched to {normalized_backend}",
+                }) + "\n"
                 return
             try:
                 await pipeline.set_tts_backend(normalized_backend)

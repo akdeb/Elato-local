@@ -102,18 +102,53 @@ Create experiences with personalities that can play games, tell stories, engage 
 
 - STT: Whisper Turbo ASR
 - TTS: Qwen3-TTS and Chatterbox-turbo
-- LLMs: any LLM from [`mlx-community`](http://huggingface.co/mlx-community) (Qwen3, Llama, Mistral3, etc.)
+- LLMs: any LLM from [`mlx-community`](http://huggingface.co/mlx-community) (Gemma 4, Qwen3.8, Muse Glimmer, Qwen3, Llama, Mistral3, etc.)
 - App: Tauri, React, Tailwind CSS, TypeScript, Rust
 - Platform focus: Apple Silicon (M1/2/3/4/5)
 - Hardware device: ESP32-S3
 
 ## ⚡️ Flash to ESP32
 
-1. Connect your ESP32-S3 to your Apple Silicon Mac.
-2. In OpenToys, go to `Settings` and click `Flash Firmware`.
-3. OpenToys flashes bundled firmware images (`bootloader`, `partitions`, `firmware`) directly.
-4. After flashing, the toy opens a WiFi captive portal (`ELATO`) for network setup.
-5. Put your Mac and toy on the same WiFi network; the toy reconnects when powered on while OpenToys is running.
+1. Connect your ESP32-S3 to your Apple Silicon Mac with a USB cable.
+2. In OpenToys, go to `Settings` → `Connect your ESP32 Here`, pick your serial port and click `Flash`.
+3. OpenToys flashes the bundled firmware images (`bootloader`, `partitions`, `firmware`) directly.
+4. Unplug the toy once flashing finishes. You only need to do this again to update the firmware.
+
+## 🎮 Play
+
+The toy hosts its own WiFi network and your Mac joins it, so there is no router
+setup, no captive portal, and no home network involved.
+
+1. **Power on the toy.** On boot it starts an open access point called **`ELATO`**
+   (no password) at `192.168.4.1`. Its LED glows pink while it waits.
+2. **Join `ELATO` from your Mac.** It appears in the macOS WiFi menu like any other
+   network. macOS will warn that the network has no internet — that is expected,
+   the toy is not a router.
+3. **Wait a moment for the handshake.** The toy detects your Mac, finds the OpenToys
+   server on it, and opens a websocket. The LED turns white and the status row in
+   the app switches to `Ready on device`.
+4. **Press the green `Play` button.** It is disabled until the toy is connected
+   (it reads *"Connect your Mac to ELATO first"* on hover) and enables itself the
+   moment the handshake lands. Press it and the toy is live — start talking.
+
+Leave OpenToys running while you play; it is doing the speech-to-text, the LLM, and
+the text-to-speech on your Mac. To finish, press `End` in the app — it drops the session
+and takes you to the transcript — or just power off the toy.
+
+> [!TIP]
+> While your Mac is joined to `ELATO` it has no internet access. Download your models
+> and voices **before** joining, or hop back onto your normal WiFi to fetch them and
+> then rejoin `ELATO`.
+
+### If the `Play` button stays greyed out
+
+- **`ELATO` isn't in the WiFi list** — the toy isn't powered, or the firmware didn't
+  flash. Reflash and watch for the pink LED on boot.
+- **Joined `ELATO` but nothing happens** — make sure OpenToys is actually running on
+  the Mac. The toy probes ports `49320` and `8000` on whichever machine joins it, and
+  waits for one of them to answer.
+- **The button says `Download voice`** — the selected character's voice isn't on disk
+  yet. Click it to fetch the voice, then come back.
 
 ## 🛡️ Safety Considerations
 

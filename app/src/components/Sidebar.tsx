@@ -5,7 +5,7 @@ import { useActiveUser } from '../state/ActiveUserContext';
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { Logo } from './Logo';
-import elatoPng from '../assets/elato.png';
+import elatoPng from '../assets/device.png';
 import { Modal } from './Modal';
 import { CreateTiles } from './CreateTiles';
 
@@ -35,20 +35,20 @@ const NavItem = ({
     <Link
       to={to}
       className={clsx(
-        "sidebar-nav-item flex items-center transition-colors",
-        iconOnly ? "justify-center w-full h-10 rounded-2xl" : "gap-3 px-4 py-3",
-        isActive
-          ? "bg-gray-100 text-black"
-          : "bg-white text-gray-900 hover:bg-gray-50",
+        "sidebar-nav-item flex items-center transition-colors text-[15px]",
+        iconOnly
+          ? "sidebar-nav-icon justify-center w-full h-9 rounded-[4px] border border-transparent hover:border-gray-200"
+          : "gap-3 px-4 py-2.5",
+        isActive ? "is-active" : "hover:bg-gray-50",
         className
       )}
       aria-label={label}
     >
-      <Icon size={20} />
+      <Icon size={iconOnly ? 18 : 17} />
       {iconOnly ? (
         <span className="sr-only">{label}</span>
       ) : (
-        <span className={`${isActive ? "font-bold" : "font-medium"} flex-1`}>{label}</span>
+        <span className={`${isActive ? "font-bold" : "font-medium"} flex-1 tracking-tight`}>{label}</span>
       )}
       {!iconOnly && TrailingIcon && <TrailingIcon size={16} className="opacity-30 shrink-0" />}
     </Link>
@@ -104,20 +104,20 @@ export const Sidebar = () => {
 
   return (
     <div className="sidebar-wrap w-64 shrink-0 bg-transparent p-6 flex flex-col gap-6 h-full overflow-y-auto overscroll-contain justify-between">
-      <div className="sidebar-shell bg-white rounded-[24px] overflow-hidden shadow-[0_12px_28px_rgba(0,0,0,0.08)] border border-gray-200">
-        <div className="sidebar-brand p-4 pb-2 bg-white text-black flex flex-col items-center">
+      <div className="sidebar-shell overflow-hidden">
+        <div className="sidebar-brand p-4 pb-3 text-black flex flex-col items-center">
           <Logo />
-          <p className="text-xs font-mono opacity-90">Local, Open-Source Toys</p>
+          <p className="label-mono mt-1.5" style={{ letterSpacing: '0.08em' }}>Local · Open Source</p>
         </div>
-        <div className="bg-transparent border-gray-200">
+        <div className="bg-transparent">
           <nav className="flex flex-col">
-            <div className="p-4 pb-6">
+            <div className="p-3 pb-4">
               <button
                 type="button"
                 className="retro-btn w-full flex items-center justify-center gap-2"
                 onClick={() => setCreateMenuOpen(true)}
               >
-                <Plus size={16} />
+                <Plus size={15} />
                 Create
               </button>
             </div>
@@ -132,7 +132,7 @@ export const Sidebar = () => {
               matchPath="/"
             />
             <NavItem to="/voices" icon={Volume2} label="Voices" />
-            <div className="grid grid-cols-3 gap-2 px-3 pb-3 w-full mt-3">
+            <div className="grid grid-cols-3 gap-1.5 px-3 py-3 mt-2 w-full border-t border-gray-100">
               <NavItem
                 to="/conversations"
                 icon={History}

@@ -35,7 +35,7 @@ export const ChatSplitAvatar = ({
 
   return (
     <div
-      className={`relative rounded-[14px] overflow-hidden bg-white shadow-[0_6px_16px_rgba(0,0,0,0.12)] ${className}`}
+      className={`relative rounded-[6px] overflow-hidden bg-white shadow-sm ${className}`}
       style={{
         width: computedWidth,
         height: computedHeight,

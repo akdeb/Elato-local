@@ -25,7 +25,7 @@ export function Modal({ open, title, onClose, children, overlayClassName, panelC
       />
       <div className={clsx("relative w-full max-w-xl retro-card", panelClassName)}>
         <div className="flex items-start justify-between gap-4 mb-4">
-          <div className="text-xl font-black flex flex-row items-center gap-2">{icon && <span className="mr-2">{icon}</span>} {title}</div>
+          <div className="font-display text-lg font-bold flex flex-row items-center gap-2">{icon && <span className="mr-2">{icon}</span>} {title}</div>
           <button
             type="button"
             className="retro-icon-btn"

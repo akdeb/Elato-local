@@ -300,11 +300,7 @@ export const Playground = () => {
         <div className={`flex flex-col items-start gap-4`}>
           <div className={`w-full`}>
             <div
-              className={`w-full h-[160px] rounded-t-[24px] bg-orange-50/50 flex items-center justify-center ${isHidden ? '' : 'cursor-pointer'} overflow-hidden`}
-              style={{
-                backgroundImage: `radial-gradient(circle, rgba(0,0,0,0.08) 1px, transparent 1px)`,
-                backgroundSize: '6px 6px'
-              }}
+              className={`retro-grid w-full h-[150px] rounded-t-[9px] border-b border-gray-200 flex items-center justify-center ${isHidden ? '' : 'cursor-pointer'} overflow-hidden`}
               title={isHidden ? "Hidden character" : (!p.is_global ? "Upload image" : "")}
             >
               {imgSrcFor(p) && !brokenImgById[String(p.id)] ? (
@@ -370,8 +366,8 @@ export const Playground = () => {
                 </>
               )}
             </div>
-            <h3 className="text-lg font-black leading-tight wrap-break-word w-[96%] retro-clamp-2">{p.name}</h3>
-            <p className="text-gray-400 text-xs font-medium mt-2 retro-clamp-2">
+            <h3 className="font-display text-[17px] font-bold leading-tight wrap-break-word w-[92%] retro-clamp-2">{p.name}</h3>
+            <p className="text-gray-600 text-[13px] leading-relaxed mt-2 retro-clamp-2">
               {p.short_description ? String(p.short_description) : '—'}
             </p>
           </div>
@@ -443,11 +439,7 @@ export const Playground = () => {
       >
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5 h-[75vh]">
           <div
-            className="h-full rounded-[24px] border bg-orange-50/50 border-gray-200 flex items-center justify-center overflow-hidden"
-            style={{
-              backgroundImage: `radial-gradient(circle, rgba(0,0,0,0.08) 1px, transparent 1px)`,
-              backgroundSize: '6px 6px'
-            }}
+            className="retro-grid h-full rounded-[10px] border border-gray-200 flex items-center justify-center overflow-hidden"
           >
             {infoExperience && imgSrcFor(infoExperience) && !brokenImgById[String(infoExperience.id)] ? (
               <img
@@ -465,7 +457,7 @@ export const Playground = () => {
 
           <div className="h-full overflow-y-auto pr-2 space-y-5">
             <div>
-              <div className="text-xs font-bold uppercase tracking-wider text-gray-500">Voice</div>
+              <div className="label-mono">Voice</div>
               <div className="mt-1 flex items-center justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   {infoExperience?.voice_id ? (
@@ -502,14 +494,14 @@ export const Playground = () => {
             </div>
 
             <div>
-              <div className="text-xs font-bold uppercase tracking-wider text-gray-500">Subtitle</div>
+              <div className="label-mono">Subtitle</div>
               <div className="text-sm text-gray-700 whitespace-pre-wrap">
                 {infoExperience?.short_description || '—'}
               </div>
             </div>
 
             <div>
-              <div className="text-xs font-bold uppercase tracking-wider text-gray-500">Prompt</div>
+              <div className="label-mono">Prompt</div>
               <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
                 {infoExperience?.prompt || '—'}
               </div>
@@ -530,14 +522,15 @@ export const Playground = () => {
         </div>
       )}
 
-      <div className="flex items-center justify-between">
-        <h2 className="text-3xl font-black flex items-center gap-3">
-          <GalleryVertical size={28} />
+      <div className="flex items-center justify-between border-b border-gray-200 pb-4">
+        <h2 className="font-display text-2xl font-bold flex items-center gap-2.5">
+          <GalleryVertical size={20} className="text-gray-400" />
           Characters
+          <span className="label-mono ml-1">{visibleExperiences.length}</span>
         </h2>
-        <div className="inline-flex items-center gap-3 rounded-full px-3 py-2">
-          <span className="inline-flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-gray-700">
-            <Moon fill={bedtimeMode ? "currentColor" : "none"} size={14} />
+        <div className="inline-flex items-center gap-2.5">
+          <span className="label-mono inline-flex items-center gap-2">
+            <Moon fill={bedtimeMode ? "currentColor" : "none"} size={13} />
             Story mode
           </span>
           <button
@@ -546,13 +539,15 @@ export const Playground = () => {
             aria-checked={bedtimeMode}
             aria-label="Toggle bedtime mode"
             onClick={toggleBedtimeMode}
-            className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition-colors duration-200 ${
-              bedtimeMode ? 'bg-purple-500 border-purple-500' : 'bg-gray-200 border-gray-300'
+            className={`relative inline-flex h-[22px] w-10 shrink-0 items-center rounded-[4px] border transition-colors duration-150 ${
+              bedtimeMode
+                ? 'bg-[var(--color-retro-accent)] border-[var(--color-retro-accent)]'
+                : 'bg-gray-100 border-gray-300'
             }`}
           >
             <span
-              className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform duration-200 ${
-                bedtimeMode ? 'translate-x-5' : 'translate-x-0.5'
+              className={`inline-block h-4 w-4 transform rounded-[2px] bg-white shadow-sm transition-transform duration-150 ${
+                bedtimeMode ? 'translate-x-[19px]' : 'translate-x-0.5'
               }`}
             />
           </button>

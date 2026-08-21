@@ -39,7 +39,7 @@ export const UsersPage = () => {
   return (
     <div>
       <div className="flex items-center justify-between gap-4 mb-8">
-        <h2 className="text-3xl font-black">MEMBERS</h2>
+        <h2 className="font-display text-2xl font-bold">Members</h2>
         <button className="retro-btn retro-btn-outline" onClick={() => setAddOpen(true)}>
           <Plus size={16} /> Add
         </button>
@@ -118,7 +118,7 @@ export const UsersPage = () => {
               <Pencil size={16} />
             </button>
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-[14px] border border-gray-200 flex items-center justify-center bg-white shadow-[0_4px_12px_rgba(0,0,0,0.08)]">
+              <div className="w-12 h-12 rounded-[6px] border border-gray-200 flex items-center justify-center bg-white shadow-sm">
                 <EmojiAvatar emoji={u.avatar_emoji} size={28} />
               </div>
               <div>
@@ -140,7 +140,7 @@ export const UsersPage = () => {
             </div>
             
             <div className="flex flex-col items-end gap-2 pr-8 w-full sm:w-[320px] sm:max-w-[45%] overflow-hidden">
-              <div className="text-xs font-bold uppercase tracking-wider text-gray-500">
+              <div className="label-mono">
                 About you
               </div>
               <div className="font-mono text-xs text-gray-700 text-right whitespace-pre-wrap break-all retro-clamp-3">

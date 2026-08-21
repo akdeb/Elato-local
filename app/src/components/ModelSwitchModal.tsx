@@ -33,11 +33,11 @@ export const ModelSwitchModal = ({
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm">
-      <div className="bg-[var(--color-retro-bg)] border-4 border-black rounded-2xl p-8 max-w-md w-full mx-4 retro-shadow">
+      <div className="bg-[var(--color-retro-bg)] border border-gray-200 rounded-[8px] p-8 max-w-md w-full mx-4 retro-shadow">
         {/* Header */}
         <div className="flex items-center gap-3 mb-6">
           <div>
-            <h2 className="text-xl font-black uppercase tracking-wide">{title}</h2>
+            <h2 className="font-display text-lg font-bold uppercase tracking-wide">{title}</h2>
           </div>
         </div>
 
@@ -73,7 +73,7 @@ export const ModelSwitchModal = ({
 
           {/* Progress bar */}
           {(stage === "downloading" || stage === "loading") && (
-            <div className="w-full bg-gray-200 rounded-full h-4 border-2 border-black overflow-hidden">
+            <div className="w-full bg-gray-200 rounded-full h-4 border border-gray-200 overflow-hidden">
               <div
                 className={`h-full transition-all duration-300 ${
                   stage === "downloading" ? "bg-blue-500" : "bg-purple-500"
@@ -84,7 +84,7 @@ export const ModelSwitchModal = ({
           )}
 
           {/* Message */}
-          <div className="rounded-xl p-4">
+          <div className="rounded-[6px] p-4">
             <p className="font-mono text-sm text-gray-700">
               {error || message || "Processing..."}
             </p>
@@ -93,7 +93,7 @@ export const ModelSwitchModal = ({
           {/* Progress percentage */}
           {(stage === "downloading" || stage === "loading") && (
             <div className="text-center">
-              <span className="font-black text-2xl">{Math.round(progress * 100)}%</span>
+              <span className="font-display text-xl font-bold">{Math.round(progress * 100)}%</span>
             </div>
           )}
         </div>

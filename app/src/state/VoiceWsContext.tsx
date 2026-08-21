@@ -39,6 +39,7 @@ type Ctx = {
   isPaused: boolean;
   isSpeaking: boolean;
   micLevel: number;
+  ttsLevel: number;
   isBedtimeMode: boolean;
   transcript: TranscriptEntry[];
 };
@@ -68,8 +69,10 @@ export const VoiceWsProvider = ({ children }: { children: React.ReactNode }) => 
   const [isPaused, setIsPaused] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [micLevel, setMicLevel] = useState<number>(0);
+  const [ttsLevel, setTtsLevel] = useState<number>(0);
   const [isBedtimeMode, setIsBedtimeMode] = useState(false);
   const lastLevelAtRef = useRef<number>(0);
+  const lastTtsLevelAtRef = useRef<number>(0);
   const isBedtimeModeRef = useRef(false);
   const micEnabledRef = useRef(false);
 
@@ -153,6 +156,7 @@ export const VoiceWsProvider = ({ children }: { children: React.ReactNode }) => 
     ttsPcmQueueRef.current = [];
     ttsPlaybackActiveRef.current = false;
     setIsSpeaking(false);
+    setTtsLevel(0);
   };
 
   const resumeMic = () => {
@@ -217,6 +221,15 @@ export const VoiceWsProvider = ({ children }: { children: React.ReactNode }) => 
         for (let i = 0; i < toCopy; i++) {
           output[outIdx++] = chunk[ttsCurrentChunkOffsetRef.current++] / 32768;
         }
+      }
+
+      // Same shape as the mic meter: throttled RMS, normalised to roughly 0-1.
+      const now = performance.now();
+      if (now - lastTtsLevelAtRef.current > 80) {
+        lastTtsLevelAtRef.current = now;
+        let sum = 0;
+        for (let i = 0; i < output.length; i++) sum += output[i] * output[i];
+        setTtsLevel(Math.min(1, Math.sqrt(sum / output.length) * 6));
       }
     };
 
@@ -772,6 +785,7 @@ export const VoiceWsProvider = ({ children }: { children: React.ReactNode }) => 
       isPaused,
       isSpeaking,
       micLevel,
+      ttsLevel,
       isBedtimeMode,
       transcript,
     }),

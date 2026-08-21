@@ -28,9 +28,9 @@ export const ChatHeader = ({
         />
 
         <div>
-          <div className="text-xs font-bold uppercase tracking-wider">Chat</div>
-          <div className="font-mono text-sm text-gray-900 wrap-break-word">
-            {userName} {"<>"} {characterName}
+          <div className="label-mono">Session</div>
+          <div className="font-mono text-[13px] text-gray-900 wrap-break-word">
+            {userName} <span className="text-gray-400">{"<>"}</span> {characterName}
           </div>
         </div>
       </div>

@@ -159,7 +159,7 @@ export const VoicesPage = () => {
   return (
     <div>
       <div className="flex justify-between items-center mb-8">
-        <h2 className="text-3xl font-black">VOICES</h2>
+        <h2 className="font-display text-2xl font-bold">Voices</h2>
       </div>
 
       <ExperienceModal

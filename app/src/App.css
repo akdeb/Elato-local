@@ -1,57 +1,208 @@
 @import "tailwindcss";
 
 :root {
-  --color-retro-bg: #ffffff;
-  --color-retro-fg: #111827;
-  --color-retro-accent: #CF79FF;
-  --color-retro-border: #000000;
+  /* ── Type ───────────────────────────────────────────── */
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+  --font-display: "Space Grotesk", "Inter", system-ui, -apple-system, sans-serif;
+
+  /* One knob for overall UI size. 1 = normal, 1.15 = filming/demo.
+     Scales every rem-based size and spacing in the app at once. */
+  --ui-scale: 1.1;
+
+  /* ── Surfaces & ink ─────────────────────────────────── */
+  --color-retro-bg: #f6f6f4;
+  --color-retro-fg: #14161a;
   --color-retro-card: #ffffff;
+  --color-retro-border: #e3e3df;
+
+  --ink: #14161a;
+  --ink-2: #4b525b;
+  --ink-3: #8c9299;
+  --line: #e3e3df;
+  --line-strong: #cfcfc9;
+  --line-faint: rgba(20, 22, 26, 0.06);
+
+  /* ── Signal colors ──────────────────────────────────── */
+  --color-retro-accent: #7c5cff;
+  --color-retro-accent-hover: #6b48ff;
+  --color-retro-accent-tint: rgba(124, 92, 255, 0.08);
   --color-retro-yellow: #ffd400;
-  --color-retro-yellow-hover: #facc15;
-  --color-retro-green: #00c853;
-  --color-retro-green-hover: #00b448;
-    --color-retro-orange: #FF8000;
-    --color-retro-orange-hover: #FF6600;
-  --color-retro-blue: #6BC5E8;
-  --radius-retro: 24px;
-  --radius-retro-sm: 18px;
-  
-  --shadow-retro: 0 10px 24px rgba(0, 0, 0, 0.12);
-  --shadow-retro-sm: 0 6px 14px rgba(0, 0, 0, 0.08);
+  --color-retro-yellow-hover: #f2c800;
+  --color-retro-green: #12a150;
+  --color-retro-green-hover: #0e8b44;
+  --color-retro-orange: #e06c00;
+  --color-retro-orange-hover: #c45e00;
+  --color-retro-blue: #3b82c4;
+
+  /* ── Geometry ───────────────────────────────────────── */
+  --radius-retro: 10px;
+  --radius-retro-sm: 6px;
+  --radius-retro-xs: 4px;
+
+  /* Flat, hairline-first depth. No offset "sticker" shadows. */
+  --shadow-retro: 0 1px 2px rgba(20, 22, 26, 0.05), 0 8px 24px rgba(20, 22, 26, 0.04);
+  --shadow-retro-sm: 0 1px 2px rgba(20, 22, 26, 0.05);
 }
 
 @layer base {
-  body {
-    background-color: var(--color-retro-bg);
-    color: #111827;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  html {
+    font-size: calc(16px * var(--ui-scale));
   }
 
+  body {
+    background-color: var(--color-retro-bg);
+    color: var(--ink);
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    letter-spacing: -0.006em;
+    font-variant-ligatures: none;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+  }
+
+  /* Numbers line up in tables, logs, timestamps. */
+  time,
+  code,
+  pre,
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::selection {
+    background: rgba(124, 92, 255, 0.22);
+  }
+
+  /* Story mode = dark workbench, light panels. The panels stay light because
+     most components hardcode white/black utilities. */
   body.bedtime-mode {
-    --color-retro-bg: #0b1226;
-    --color-retro-fg: #dbe7ff;
-    --color-retro-card: #f8fbff;
-    --color-retro-accent: #7c90ff;
-    --color-retro-yellow: #f8d35d;
-    --shadow-retro: 0 10px 24px rgba(7, 15, 35, 0.45);
-    --shadow-retro-sm: 0 6px 14px rgba(7, 15, 35, 0.25);
-    color: #dbe7ff;
-    background: radial-gradient(circle at 20% 0%, #152347 0%, #0b1226 45%, #070d1c 100%);
+    --color-retro-bg: #0e1116;
+    --color-retro-fg: #dfe3ea;
+    --color-retro-card: #ffffff;
+    --color-retro-accent: #9b83ff;
+    --color-retro-accent-tint: rgba(155, 131, 255, 0.16);
+    --ink: #dfe3ea;
+    --ink-2: #a7aeb9;
+    --ink-3: #79818d;
+    --line: #262b34;
+    --line-strong: #333a45;
+    --line-faint: rgba(255, 255, 255, 0.04);
+    --shadow-retro: 0 1px 2px rgba(0, 0, 0, 0.5);
+    --shadow-retro-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    color: var(--ink);
+    background-color: #0e1116;
+  }
+
+  /* Kid mode = the pre-redesign playful theme: chunky radii, sticker shadows,
+     the old purple accent. Adult mode is the default flat theme above and
+     carries no class, so every rule here is additive. */
+  body.kid-mode {
+    --ui-scale: 1;
+
+    /* The redesign introduced JetBrains Mono for body text and Space Grotesk
+       for headings. Before it, the only webfont was Luckiest Guy (the logo);
+       everything else was the system mono stack, headings included. */
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+      "Liberation Mono", "Courier New", monospace;
+    --font-display: var(--font-mono);
+
+    --color-retro-bg: #ffffff;
+    --color-retro-fg: #111827;
+    --color-retro-card: #ffffff;
+    --color-retro-border: #000000;
+
+    --ink: #111827;
+    --ink-2: #374151;
+    --ink-3: #6b7280;
+    --line: #000000;
+    --line-strong: #000000;
+    --line-faint: rgba(0, 0, 0, 0.08);
+
+    --color-retro-accent: #cf79ff;
+    --color-retro-accent-hover: #b95cf0;
+    --color-retro-accent-tint: rgba(207, 121, 255, 0.16);
+    --color-retro-yellow: #ffd400;
+    --color-retro-yellow-hover: #facc15;
+    --color-retro-green: #00c853;
+    --color-retro-green-hover: #00b448;
+    --color-retro-orange: #ff8000;
+    --color-retro-orange-hover: #ff6600;
+    --color-retro-blue: #6bc5e8;
+
+    --radius-retro: 24px;
+    --radius-retro-sm: 18px;
+    --radius-retro-xs: 12px;
+
+    --shadow-retro: 0 10px 24px rgba(0, 0, 0, 0.12);
+    --shadow-retro-sm: 0 6px 14px rgba(0, 0, 0, 0.08);
+
+    color: var(--ink);
+    background-color: var(--color-retro-bg);
+    font-size: 1rem;
+    letter-spacing: normal;
+    font-variant-ligatures: normal;
+  }
+
+  /* Headings were plain mono at default tracking, not a tracked display face. */
+  body.kid-mode h1,
+  body.kid-mode h2,
+  body.kid-mode h3 {
+    font-family: var(--font-mono);
+    letter-spacing: normal;
   }
 }
 
 @layer utilities {
+  /* ── Type utilities ───────────────────────────────── */
+  .font-display {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+  }
+
+  /* Caps need air, not negative tracking. */
+  .font-display.uppercase,
+  h1.uppercase,
+  h2.uppercase,
+  h3.uppercase {
+    letter-spacing: 0.04em;
+  }
+
+  /* Logo wordmark only — the brand face, not a UI face. */
+  .brand-font {
+    font-family: "Luckiest Guy", var(--font-mono);
+    font-weight: 400;
+    letter-spacing: 0.08em;
+  }
+
+  /* Small mono caps used for field labels / meta rows. */
+  .label-mono {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+  }
+
+  /* ── Motion ───────────────────────────────────────── */
   @keyframes retro-blink {
-    0%, 100% {
+    0%,
+    100% {
       opacity: 1;
     }
     50% {
-      opacity: 0.55;
+      opacity: 0.35;
     }
   }
 
   .retro-blink {
-    animation: retro-blink 1.8s ease-in-out infinite;
+    animation: retro-blink 1.4s steps(2, end) infinite;
   }
 
   .retro-clamp-2 {
@@ -70,95 +221,204 @@
     overflow: hidden;
   }
 
+  /* ── Patterns ─────────────────────────────────────── */
   .retro-dotted {
-    border: 2px dashed #aaa;
+    border: 1px dashed var(--line-strong);
+  }
+
+  /* Graph-paper fill for empty media slots. */
+  .retro-grid {
+    background-color: color-mix(in srgb, var(--color-retro-bg) 65%, #fff);
+    background-image: linear-gradient(rgba(20, 22, 26, 0.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(20, 22, 26, 0.06) 1px, transparent 1px);
+    background-size: 8px 8px;
+  }
+
+  .retro-dots {
+    background-image: radial-gradient(rgba(20, 22, 26, 0.1) 1px, transparent 1px);
+    background-size: 8px 8px;
   }
 
   .retro-shadow {
     box-shadow: var(--shadow-retro);
-    border: 1px solid #000000;
+    border: 1px solid var(--line);
     border-radius: var(--radius-retro);
   }
 
   .retro-shadow-sm {
     box-shadow: var(--shadow-retro-sm);
-    border: 1px solid #000000;
+    border: 1px solid var(--line);
     border-radius: var(--radius-retro-sm);
   }
 
-  .retro-card.retro-selected {
-    border: 1px solid #e5e7eb;
-    box-shadow: 0 0 0 2px var(--color-retro-accent), var(--shadow-retro-sm);
+  /* ── Status LED (square, not a bubble) ────────────── */
+  .led {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 1.5px;
+    background: var(--ink-3);
+    box-shadow: 0 0 0 1px rgba(20, 22, 26, 0.08) inset;
   }
 
-  .retro-card.retro-not-selected {
-    border: 1px solid #e5e7eb;
+  .led-on {
+    background: var(--color-retro-green);
+    box-shadow: 0 0 0 3px rgba(18, 161, 80, 0.14);
+  }
+
+  .led-idle {
+    background: var(--color-retro-yellow);
+    box-shadow: 0 0 0 3px rgba(255, 212, 0, 0.16);
+  }
+
+  .led-off {
+    background: var(--ink-3);
+  }
+
+  .led-error {
+    background: #dc2626;
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.14);
+  }
+
+  /* ── Cards ────────────────────────────────────────── */
+  .retro-card {
+    background-color: var(--color-retro-card);
+    padding: 1.25rem;
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow-retro-sm);
+    border-radius: var(--radius-retro);
+  }
+
+  /* Ring must be an outline, not an inset shadow: an inset shadow paints under
+     child content, so a full-bleed image thins it out along the top and sides. */
+  .retro-card.retro-selected {
+    border: 1px solid var(--color-retro-accent);
+    outline: 1px solid var(--color-retro-accent);
+    outline-offset: 0;
     box-shadow: var(--shadow-retro-sm);
   }
 
-  .retro-dots {
-    background-image: radial-gradient(rgba(0, 0, 0, 0.14) 1px, transparent 1px);
-    background-size: 18px 18px;
-    background-position: -1px -1px;
+  .retro-card.retro-not-selected {
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow-retro-sm);
   }
 
-  .brand-font {
-    font-family: "Luckiest Guy", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-    letter-spacing: 0.08em;
+  .retro-card.retro-not-selected:hover {
+    border-color: var(--line-strong);
   }
 
+  .retro-card-no-padding {
+    padding: 0;
+    box-shadow: none;
+    border-radius: 0;
+  }
+
+  .retro-card-outline {
+    background-color: transparent;
+    padding: 1.25rem;
+    border: 1px solid var(--line-strong);
+    box-shadow: none;
+    border-radius: var(--radius-retro);
+  }
+
+  /* ── Buttons ──────────────────────────────────────── */
   .retro-btn {
     position: relative;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
-    padding: 0.6rem 1.5rem;
-    background-color: var(--color-retro-yellow);
-    color: #111827;
-    font-weight: 900;
-    /* text-transform: uppercase; */
-    letter-spacing: 0.04em;
-    border: none;
-    border-radius: 16px;
-    box-shadow: 0 6px 0 var(--shadow-color, #c58a00);
-    transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+    padding: 0.5rem 0.95rem;
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    color: #ffffff;
+    background-color: var(--ink);
+    border: 1px solid var(--ink);
+    border-radius: var(--radius-retro-sm);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease,
+      transform 0.06s ease;
     cursor: pointer;
   }
 
+  .retro-btn:hover {
+    background-color: #2a2f37;
+    border-color: #2a2f37;
+  }
+
+  .retro-btn:active {
+    transform: translateY(1px);
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.25);
+  }
+
+  .retro-btn:focus-visible {
+    outline: 2px solid var(--color-retro-accent);
+    outline-offset: 2px;
+  }
+
   .retro-btn-sm {
-    padding: 0.35rem 0.75rem;
+    padding: 0.3rem 0.6rem;
     font-size: 0.75rem;
   }
 
   .retro-btn-purple {
     background-color: var(--color-retro-accent);
-    color: white;
-    --shadow-color: #7a35a6;
+    border-color: var(--color-retro-accent);
+    color: #ffffff;
+  }
+  .retro-btn-purple:hover {
+    background-color: var(--color-retro-accent-hover);
+    border-color: var(--color-retro-accent-hover);
   }
 
   .retro-btn-green {
     background-color: var(--color-retro-green);
-    color: white;
-    --shadow-color: var(--color-retro-green-hover);
+    border-color: var(--color-retro-green);
+    color: #ffffff;
+  }
+  .retro-btn-green:hover {
+    background-color: var(--color-retro-green-hover);
+    border-color: var(--color-retro-green-hover);
+  }
+
+  /* Brand yellow, kept for accent use rather than as the default fill. */
+  .retro-btn-yellow {
+    background-color: var(--color-retro-yellow);
+    border-color: #e6bf00;
+    color: #14161a;
+  }
+  .retro-btn-yellow:hover {
+    background-color: var(--color-retro-yellow-hover);
+    border-color: #d9b500;
   }
 
   .retro-btn-outline {
-    background-color: white;
-    color: #111827;
-    border: 2px solid #f3f4f6;
-    box-shadow: 0 6px 0 #d1d5db;
+    background-color: var(--color-retro-card);
+    color: var(--ink);
+    border: 1px solid var(--line-strong);
+    box-shadow: none;
+  }
+  .retro-btn-outline:hover {
+    background-color: color-mix(in srgb, var(--color-retro-bg) 70%, #fff);
+    border-color: var(--ink-3);
   }
 
-
-  .retro-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 0 var(--shadow-color, #c58a00);
+  .retro-btn-dangerous-outline {
+    background-color: var(--color-retro-card);
+    color: #b42318;
+    border: 1px solid #f0c6c1;
+    box-shadow: none;
+  }
+  .retro-btn-dangerous-outline:hover {
+    background-color: #fef3f2;
+    border-color: #e4a49c;
   }
 
   .retro-btn:disabled,
   .retro-btn[disabled] {
-    opacity: 0.45;
+    opacity: 0.4;
     cursor: not-allowed;
     transform: none;
   }
@@ -168,264 +428,530 @@
     transform: none;
   }
 
-
-  .retro-btn-outline:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 0 #aaa;
-  }
-
-  .retro-btn.no-lift:hover {
+  /* Legacy hook — the flat buttons never lift, so this is a no-op now. */
+  .retro-btn.no-lift:hover,
+  .retro-btn-outline.no-lift:hover {
     transform: none;
-    box-shadow: 0 6px 0 var(--shadow-color, #c58a00);
-  }
-
-
-.retro-btn-outline.no-lift:hover {
-  transform: none;
-  box-shadow: 0 6px 0 #d1d5db;
-}
-
-  .retro-btn-dangerous-outline {
-    background-color: #fff1f2;
-    color: #9f1239;
-    border: 2px solid #fecdd3;
-    box-shadow: 0 6px 0 #fda4af;
-  }
-
-  .retro-btn-dangerous-outline:hover {
-    filter: brightness(0.98);
-  }
-
-  .retro-btn-dangerous-outline:active {
-    filter: brightness(0.95);
-  }
-
-  .retro-btn:active {
-    transform: translateY(6px);
-    box-shadow: none;
-  }
-
-  .retro-input {
-    width: 100%;
-    padding: 0.5rem 1rem;
-    background-color: white;
-    border: 1px solid black;
-    box-shadow: none;
-    border-radius: var(--radius-retro-sm);
-    outline: none;
-  }
-  .retro-input:focus {
-    outline: none;
-  }
-
-  .retro-card {
-    background-color: white;
-    padding: 1.5rem;
-    /* border: 1px solid black; */
-    box-shadow: var(--shadow-retro-sm);
-    border-radius: var(--radius-retro);
-  }
-
-  body.bedtime-mode .retro-card {
-    background-color: #f8fbff;
-    color: #0f172a;
-    border: 1px solid #d6e0f0;
-  }
-
-  body.bedtime-mode .retro-btn-outline {
-    background-color: #eef2ff;
-    color: #1e293b;
-    border-color: #c7d2fe;
-    box-shadow: 0 6px 0 #a5b4fc;
-  }
-
-  body.bedtime-mode .retro-input {
-    background-color: #ffffff;
-    color: #0f172a;
-    border-color: #cbd5e1;
-  }
-
-  body.bedtime-mode .sidebar-shell {
-    background: rgba(11, 18, 38, 0.78);
-    border-color: #2b3a62;
-    box-shadow: 0 20px 40px rgba(3, 8, 20, 0.5);
-    backdrop-filter: blur(6px);
-  }
-
-  body.bedtime-mode .sidebar-brand {
-    background: rgba(11, 18, 38, 0.3);
-    color: #e2e8f0;
-  }
-
-  body.bedtime-mode .sidebar-nav-item {
-    border-color: transparent;
-  }
-
-  body.bedtime-mode .sidebar-nav-item.bg-white {
-    background: rgba(14, 26, 53, 0.9);
-    color: #dbe7ff !important;
-  }
-
-  body.bedtime-mode .sidebar-nav-item.bg-gray-100 {
-    background: rgba(99, 123, 255, 0.2);
-    color: #ffffff !important;
-  }
-
-  body.bedtime-mode .sidebar-nav-item:hover {
-    background: rgba(64, 86, 176, 0.28) !important;
-  }
-
-  body.bedtime-mode .sidebar-footer {
-    color: #aebee6;
-  }
-
-  body.bedtime-mode .session-dock-inner {
-    background: rgba(12, 24, 48, 0.94);
-    border-color: #2e3e6c;
-    box-shadow: 0 14px 30px rgba(3, 8, 20, 0.55);
-    backdrop-filter: blur(8px);
-  }
-
-  body.bedtime-mode .session-dock-inner .text-black,
-  body.bedtime-mode .session-dock-inner .text-gray-900,
-  body.bedtime-mode .session-dock-inner .text-gray-800 {
-    color: #f1f5ff !important;
-  }
-
-  body.bedtime-mode .session-dock-inner .text-gray-700,
-  body.bedtime-mode .session-dock-inner .text-gray-600,
-  body.bedtime-mode .session-dock-inner .text-gray-500 {
-    color: #b6c4e6 !important;
-  }
-
-  body.bedtime-mode .session-dock-inner .retro-btn-purple {
-    background: linear-gradient(180deg, #8ba1ff 0%, #7689ff 100%);
-    --shadow-color: #4f5ed1;
-  }
-
-   .retro-card-no-padding {
-    padding: 0;
-    box-shadow: none;
-    border-radius: 0;
-  }
-
-  .retro-card-outline {
-    background-color: transparent;
-    padding: 1.5rem;
-    border: 1px solid black;
-    box-shadow: none;
-    border-radius: var(--radius-retro);
   }
 
   .retro-icon-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 34px;
-    height: 34px;
-    border-radius: 12px;
-    border: none;
+    width: 30px;
+    height: 30px;
+    border-radius: var(--radius-retro-xs);
+    border: 1px solid transparent;
     background: transparent;
+    color: var(--ink-2);
     box-shadow: none;
-    transition: transform 0.12s, box-shadow 0.12s;
+    transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
   }
   .retro-icon-btn:hover {
-    background: rgba(0, 0, 0, 0.06);
+    background: color-mix(in srgb, var(--color-retro-bg) 60%, #fff);
+    border-color: var(--line);
+    color: var(--ink);
   }
-  .retro-icon-btn:active {
-    transform: none;
+  .retro-icon-btn:focus-visible {
+    outline: 2px solid var(--color-retro-accent);
+    outline-offset: 1px;
+  }
+
+  /* ── Inputs ───────────────────────────────────────── */
+  .retro-input {
+    width: 100%;
+    padding: 0.45rem 0.65rem;
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    color: var(--ink);
+    background-color: var(--color-retro-card);
+    border: 1px solid var(--line-strong);
     box-shadow: none;
+    border-radius: var(--radius-retro-sm);
+    outline: none;
+    transition: border-color 0.12s ease, box-shadow 0.12s ease;
+  }
+  .retro-input::placeholder {
+    color: var(--ink-3);
+  }
+  .retro-input:focus {
+    outline: none;
+    border-color: var(--color-retro-accent);
+    box-shadow: 0 0 0 3px var(--color-retro-accent-tint);
   }
 
   .retro-range {
     -webkit-appearance: none;
     appearance: none;
-    border: 1px solid black;
+    background: transparent;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-retro-xs);
   }
   .retro-range::-webkit-slider-runnable-track {
-    height: 8px;
+    height: 6px;
     background: transparent;
-    border-radius: 9999px;
+    border-radius: 2px;
   }
   .retro-range::-webkit-slider-thumb {
     -webkit-appearance: none;
     appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    background: var(--color-retro-accent);
+    border: none;
+    margin-top: -4px;
+  }
+  .retro-range::-moz-range-track {
+    height: 6px;
+    background: transparent;
+    border-radius: 2px;
+  }
+  .retro-range::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    background: var(--color-retro-accent);
+    border: none;
+  }
+
+  /* ── Chat ─────────────────────────────────────────── */
+  .chat-bubble {
+    max-width: 78%;
+    padding: 0.65rem 0.85rem;
+    border-radius: var(--radius-retro-sm);
+    font-size: 0.9375rem;
+    line-height: 1.6;
+  }
+
+  .chat-bubble-ai {
+    background: var(--color-retro-card);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    border-left: 2px solid var(--color-retro-accent);
+    border-top-left-radius: 2px;
+    border-bottom-left-radius: 2px;
+  }
+
+  .chat-bubble-user {
+    background: var(--ink);
+    color: #f4f5f7;
+    border: 1px solid var(--ink);
+    border-top-right-radius: 2px;
+    border-bottom-right-radius: 2px;
+  }
+
+  .chat-role {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .chat-time {
+    font-size: 0.6875rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ── App chrome ───────────────────────────────────── */
+  .app-shell {
+    background-color: var(--color-retro-bg);
+  }
+
+  .sidebar-shell {
+    background: var(--color-retro-card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-retro);
+    box-shadow: var(--shadow-retro-sm);
+  }
+
+  .sidebar-brand {
+    border-bottom: 1px solid var(--line);
+  }
+
+  .sidebar-nav-item {
+    border-left: 2px solid transparent;
+    color: var(--ink-2);
+  }
+
+  .sidebar-nav-item.is-active {
+    border-left-color: var(--color-retro-accent);
+    background: var(--color-retro-accent-tint);
+    color: var(--ink);
+  }
+
+  .sidebar-nav-item.sidebar-nav-icon.is-active {
+    border-left-color: transparent;
+    border-color: var(--color-retro-accent);
+    color: var(--color-retro-accent);
+  }
+
+  .sidebar-footer {
+    color: var(--ink-3);
+  }
+
+  .session-dock-inner {
+    background: var(--color-retro-card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-retro);
+    box-shadow: 0 -1px 0 var(--line), 0 12px 32px rgba(20, 22, 26, 0.08);
+  }
+
+  .settings-shell {
+    border-radius: var(--radius-retro);
+  }
+
+  .settings-action {
+    min-width: 120px;
+  }
+
+  .live-header-surface {
+    min-height: 148px;
+    border-radius: var(--radius-retro);
+  }
+
+  /* ── Kid mode (pre-redesign look) ─────────────────── */
+  /* Tokens alone can't undo the redesign: the flat theme also changed shapes,
+     shadows and type. These rules restore the old component look. They sit
+     before the story-mode block so a dark story shell still layers on top. */
+
+  body.kid-mode .font-display,
+  body.kid-mode .font-display.uppercase,
+  body.kid-mode h1.uppercase,
+  body.kid-mode h2.uppercase,
+  body.kid-mode h3.uppercase {
+    font-family: var(--font-mono);
+    letter-spacing: normal;
+  }
+
+  /* Old markup used a plain "font-mono text-xs text-gray-500" meta row - no
+     uppercasing and no wide tracking. */
+  body.kid-mode .label-mono {
+    font-size: 0.75rem;
+    font-weight: 400;
+    letter-spacing: normal;
+    text-transform: none;
+    color: #6b7280;
+  }
+
+  body.kid-mode .retro-blink {
+    animation: retro-blink 1.8s ease-in-out infinite;
+  }
+
+  /* Status dots were round bubbles with a hairline ring, not square LEDs. */
+  body.kid-mode .led {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 9999px;
+    border: 1px solid #d1d5db;
+    box-shadow: none;
+  }
+  body.kid-mode .led-on {
+    background: #10b981;
+    box-shadow: none;
+  }
+  body.kid-mode .led-idle {
+    background: #4ade80;
+    box-shadow: none;
+  }
+  body.kid-mode .led-error {
+    background: #ef4444;
+    box-shadow: none;
+  }
+
+  body.kid-mode .retro-dotted {
+    border: 2px dashed #aaa;
+  }
+
+  body.kid-mode .retro-dots,
+  body.kid-mode .retro-grid {
+    background-color: transparent;
+    background-image: radial-gradient(rgba(0, 0, 0, 0.14) 1px, transparent 1px);
+    background-size: 18px 18px;
+    background-position: -1px -1px;
+  }
+
+  body.kid-mode .retro-shadow,
+  body.kid-mode .retro-shadow-sm {
+    border: 1px solid #000000;
+  }
+
+  /* ── Kid cards ────────────────────────────────────── */
+  body.kid-mode .retro-card {
+    padding: 1.5rem;
+    border: none;
+    box-shadow: var(--shadow-retro-sm);
+  }
+
+  body.kid-mode .retro-card.retro-selected {
+    border: 1px solid #e5e7eb;
+    outline: none;
+    box-shadow: 0 0 0 2px var(--color-retro-accent), var(--shadow-retro-sm);
+  }
+
+  body.kid-mode .retro-card.retro-not-selected {
+    border: 1px solid #e5e7eb;
+  }
+
+  body.kid-mode .retro-card-outline {
+    padding: 1.5rem;
+    border: 1px solid #000000;
+  }
+
+  /* ── Kid buttons: yellow with a hard offset shadow that presses down ── */
+  body.kid-mode .retro-btn {
+    padding: 0.6rem 1.5rem;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    color: #111827;
+    background-color: var(--color-retro-yellow);
+    border: none;
+    border-radius: 16px;
+    box-shadow: 0 6px 0 var(--shadow-color, #c58a00);
+    transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+  }
+
+  body.kid-mode .retro-btn:hover {
+    background-color: var(--color-retro-yellow);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 0 var(--shadow-color, #c58a00);
+  }
+
+  body.kid-mode .retro-btn:active {
+    transform: translateY(6px);
+    box-shadow: none;
+  }
+
+  body.kid-mode .retro-btn.no-lift:hover {
+    transform: none;
+    box-shadow: 0 6px 0 var(--shadow-color, #c58a00);
+  }
+
+  body.kid-mode .retro-btn-sm {
+    padding: 0.35rem 0.75rem;
+    font-size: 0.75rem;
+  }
+
+  body.kid-mode .retro-btn-purple {
+    background-color: var(--color-retro-accent);
+    color: #ffffff;
+    --shadow-color: #7a35a6;
+  }
+  body.kid-mode .retro-btn-purple:hover {
+    background-color: var(--color-retro-accent);
+  }
+
+  body.kid-mode .retro-btn-green {
+    background-color: var(--color-retro-green);
+    color: #ffffff;
+    --shadow-color: var(--color-retro-green-hover);
+  }
+  body.kid-mode .retro-btn-green:hover {
+    background-color: var(--color-retro-green);
+  }
+
+  body.kid-mode .retro-btn-outline {
+    background-color: #ffffff;
+    color: #111827;
+    border: 2px solid #f3f4f6;
+    box-shadow: 0 6px 0 #d1d5db;
+  }
+  body.kid-mode .retro-btn-outline:hover {
+    background-color: #ffffff;
+    border-color: #f3f4f6;
+    box-shadow: 0 8px 0 #aaa;
+  }
+  body.kid-mode .retro-btn-outline.no-lift:hover {
+    transform: none;
+    box-shadow: 0 6px 0 #d1d5db;
+  }
+
+  body.kid-mode .retro-btn-dangerous-outline {
+    background-color: #fff1f2;
+    color: #9f1239;
+    border: 2px solid #fecdd3;
+    box-shadow: 0 6px 0 #fda4af;
+  }
+  body.kid-mode .retro-btn-dangerous-outline:hover {
+    background-color: #fff1f2;
+    border-color: #fecdd3;
+    filter: brightness(0.98);
+  }
+
+  body.kid-mode .retro-icon-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 12px;
+    border: none;
+    color: inherit;
+  }
+  body.kid-mode .retro-icon-btn:hover {
+    background: rgba(0, 0, 0, 0.06);
+    border-color: transparent;
+  }
+
+  /* ── Kid inputs ───────────────────────────────────── */
+  body.kid-mode .retro-input {
+    padding: 0.5rem 1rem;
+    border: 1px solid #000000;
+  }
+  body.kid-mode .retro-input:focus {
+    border-color: #000000;
+    box-shadow: none;
+  }
+
+  body.kid-mode .retro-range {
+    border: 1px solid #000000;
+    border-radius: 9999px;
+  }
+  body.kid-mode .retro-range::-webkit-slider-runnable-track {
+    height: 8px;
+    border-radius: 9999px;
+  }
+  body.kid-mode .retro-range::-webkit-slider-thumb {
     width: 18px;
     height: 18px;
     border-radius: 9999px;
-    background: white;
-    border: 1px solid black;
+    background: #ffffff;
+    border: 1px solid #000000;
     margin-top: -5px;
   }
-  .retro-range::-moz-range-track {
+  body.kid-mode .retro-range::-moz-range-track {
     height: 8px;
-    background: transparent;
     border-radius: 9999px;
   }
-  .retro-range::-moz-range-thumb {
+  body.kid-mode .retro-range::-moz-range-thumb {
     width: 18px;
     height: 18px;
     border-radius: 9999px;
     background: var(--color-retro-accent);
-    border: 2px solid black;
+    border: 2px solid #000000;
   }
 
-  .settings-shell {
+  /* ── Kid chat bubbles ─────────────────────────────── */
+  body.kid-mode .chat-bubble {
+    padding: 0.75rem 1rem;
+    border-radius: 16px;
+    font-size: 0.9375rem;
+  }
+
+  body.kid-mode .chat-bubble-ai {
+    background: #f0f0f0;
+    color: #111827;
+    border: none;
+    border-radius: 16px;
+  }
+
+  body.kid-mode .chat-bubble-user {
+    background: #c084fc;
+    color: #ffffff;
+    border: none;
+    border-radius: 16px;
+  }
+
+  body.kid-mode .chat-role {
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  /* ── Kid app chrome ───────────────────────────────── */
+  body.kid-mode .sidebar-shell {
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 24px;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.08);
+  }
+
+  body.kid-mode .sidebar-brand {
+    border-bottom: none;
+  }
+
+  body.kid-mode .sidebar-nav-item {
+    border-left: none;
+    background: #ffffff;
+    color: #111827;
+  }
+
+  body.kid-mode .sidebar-nav-item.is-active {
+    background: #f3f4f6;
+    color: #000000;
+  }
+
+  body.kid-mode .sidebar-nav-item:hover {
+    background: #f9fafb;
+  }
+
+  body.kid-mode .sidebar-nav-item.sidebar-nav-icon {
+    border-radius: 16px;
+    border-color: transparent;
+  }
+
+  body.kid-mode .sidebar-nav-item.sidebar-nav-icon.is-active {
+    background: #f3f4f6;
+    color: #000000;
+    border-color: transparent;
+  }
+
+  /* The dock was a pill in the old design. */
+  body.kid-mode .session-dock-inner {
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 9999px;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  }
+
+  body.kid-mode .settings-shell {
     border-radius: 30px;
   }
 
-  .settings-action {
+  body.kid-mode .settings-action {
     min-width: 132px;
   }
 
-  .live-header-surface {
+  body.kid-mode .live-header-surface {
     min-height: 164px;
   }
 
-  body.bedtime-mode .settings-title {
-    color: #dbe7ff;
-  }
-
+  /* ── Story mode overrides ─────────────────────────── */
+  /* Panels flip back to a light context so nested white/black utilities and
+     var(--ink) descendants stay readable. */
+  body.bedtime-mode .retro-card,
+  body.bedtime-mode .sidebar-shell,
+  body.bedtime-mode .session-dock-inner,
+  body.bedtime-mode .live-header-surface,
   body.bedtime-mode .settings-shell {
-    background: rgba(248, 251, 255, 0.96);
-    border-color: #d6e0f0;
-    box-shadow: 0 18px 32px rgba(3, 8, 20, 0.32);
+    --ink: #14161a;
+    --ink-2: #4b525b;
+    --ink-3: #8c9299;
+    --line: #e3e3df;
+    --line-strong: #cfcfc9;
+    background-color: var(--color-retro-card);
+    color: var(--ink);
+    border-color: var(--line);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
   }
 
-  body.bedtime-mode .settings-shell .settings-section {
-    border-color: #d8e3f5;
+  body.bedtime-mode .retro-grid {
+    background-color: #f1f1ee;
   }
 
-  body.bedtime-mode .settings-shell .text-gray-500 {
-    color: #64748b;
+  body.bedtime-mode .sidebar-nav-item:hover {
+    background: rgba(20, 22, 26, 0.04) !important;
   }
 
-  body.bedtime-mode .live-header-surface {
-    background: rgba(13, 24, 51, 0.86);
-    border-color: #2f416d;
-    box-shadow: 0 18px 32px rgba(3, 8, 20, 0.42);
-    backdrop-filter: blur(8px);
-  }
-
+  /* Text that sits directly on the dark shell. */
+  body.bedtime-mode .settings-title,
   body.bedtime-mode .live-title {
-    color: #dbe7ff;
+    color: #dfe3ea;
   }
 
-  body.bedtime-mode .live-meta {
-    color: #b8c7ea;
-  }
-
-  body.bedtime-mode .live-meta .text-black {
-    color: #f8fbff;
-  }
-
-  body.bedtime-mode .live-meta .text-gray-500 {
-    color: #9fb0d8;
+  body.bedtime-mode .settings-page > .flex .label-mono,
+  body.bedtime-mode .sidebar-footer {
+    color: #79818d;
   }
 
   body.bedtime-mode .live-orb-image {
-    border-color: #d7e2f6;
-    background: #f8fbff;
+    border-color: var(--line-strong);
+    background: var(--color-retro-card);
   }
-
 }

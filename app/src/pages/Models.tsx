@@ -49,7 +49,7 @@ export const ModelsPage = () => {
   return (
     <div>
       <div className="flex justify-between items-center mb-8">
-        <h2 className="text-3xl font-black">AI MODELS</h2>
+        <h2 className="font-display text-2xl font-bold">AI Models</h2>
         <button type="button" className="retro-btn" onClick={save} disabled={saving || loading}>
           {saving ? "Saving…" : "Save"}
         </button>
@@ -61,8 +61,8 @@ export const ModelsPage = () => {
       <div className="retro-card mb-4">
         <div className="font-bold uppercase text-sm mb-3">Current runtime</div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-white border border-black rounded-[18px] px-4 py-3 retro-shadow-sm">
-            <div className="text-xs font-bold uppercase tracking-wider">LLM</div>
+          <div className="bg-white border border-black rounded-[8px] px-4 py-3 retro-shadow-sm">
+            <div className="label-mono">LLM</div>
             <div className="font-mono text-xs text-gray-700 mt-1">Backend: {current?.llm?.backend || "—"}</div>
             <div className="font-mono text-xs text-gray-700 mt-1 break-all">Repo: {current?.llm?.repo || "—"}</div>
             <div className="font-mono text-xs text-gray-700 mt-1 break-all">File: {current?.llm?.file || "—"}</div>
@@ -70,8 +70,8 @@ export const ModelsPage = () => {
             <div className="font-mono text-xs text-gray-700 mt-1">Loaded: {current?.llm?.loaded ? "yes" : "no"}</div>
           </div>
 
-          <div className="bg-white border border-black rounded-[18px] px-4 py-3 retro-shadow-sm">
-            <div className="text-xs font-bold uppercase tracking-wider">TTS</div>
+          <div className="bg-white border border-black rounded-[8px] px-4 py-3 retro-shadow-sm">
+            <div className="label-mono">TTS</div>
             <div className="font-mono text-xs text-gray-700 mt-1">Backend: {current?.tts?.backend || "—"}</div>
             <div className="font-mono text-xs text-gray-700 mt-1 break-all">Backbone: {current?.tts?.backbone_repo || "—"}</div>
             <div className="font-mono text-xs text-gray-700 mt-1 break-all">Codec: {current?.tts?.codec_repo || "—"}</div>
@@ -93,16 +93,16 @@ export const ModelsPage = () => {
         </div>
 
         <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-white border border-black rounded-[18px] px-4 py-3">
-            <div className="text-xs font-bold uppercase tracking-wider">RAM estimate</div>
+          <div className="bg-white border border-black rounded-[8px] px-4 py-3">
+            <div className="label-mono">RAM estimate</div>
             <div className="font-mono text-xs text-gray-600 mt-1">(placeholder)</div>
           </div>
-          <div className="bg-white border border-black rounded-[18px] px-4 py-3">
-            <div className="text-xs font-bold uppercase tracking-wider">GPU / Metal</div>
+          <div className="bg-white border border-black rounded-[8px] px-4 py-3">
+            <div className="label-mono">GPU / Metal</div>
             <div className="font-mono text-xs text-gray-600 mt-1">(placeholder)</div>
           </div>
-          <div className="bg-white border border-black rounded-[18px] px-4 py-3">
-            <div className="text-xs font-bold uppercase tracking-wider">Context window</div>
+          <div className="bg-white border border-black rounded-[8px] px-4 py-3">
+            <div className="label-mono">Context window</div>
             <div className="font-mono text-xs text-gray-600 mt-1">(placeholder)</div>
           </div>
         </div>

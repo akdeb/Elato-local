@@ -20,6 +20,7 @@
     "emoji-picker-element": "^1.28.1",
     "emoji-picker-react": "^4.17.1",
     "lucide-react": "^0.561.0",
+    "orb-ui": "^0.7.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-router-dom": "^7.10.1",

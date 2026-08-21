@@ -222,7 +222,7 @@ export const SetupPage = () => {
             </div>
 
               {error && (
-                <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-xl">
+                <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-[6px]">
                   <div className="text-sm text-red-700 font-mono break-all">{error}</div>
                   <button className="retro-btn mt-3 w-full" onClick={checkStatus}>
                     Retry
@@ -237,7 +237,7 @@ export const SetupPage = () => {
       </div>
       {!error && (
         <div className="fixed bottom-6 right-6 pointer-events-none">
-          <div className="flex items-start gap-3 rounded-2xl border border-gray-200 bg-white/95 px-4 py-3 shadow-lg">
+          <div className="flex items-start gap-3 rounded-[8px] border border-gray-200 bg-white/95 px-4 py-3 shadow-sm">
             {step === "complete" ? (
               <CheckCircle2 className="w-4 h-4 text-white mt-0.5" fill="black" />
             ) : (

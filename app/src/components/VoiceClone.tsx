@@ -264,7 +264,7 @@ export const VoiceClone = ({ open, onClose, onCreated }: Props) => {
 
       <div className="relative w-full max-w-3xl retro-card">
         <div className="flex items-start justify-between gap-4 mb-4">
-          <div className="text-xl font-black uppercase">Create Voice Clone</div>
+          <div className="font-display text-lg font-bold uppercase">Create Voice Clone</div>
           <button
             type="button"
             className="retro-icon-btn"
@@ -323,7 +323,7 @@ export const VoiceClone = ({ open, onClose, onCreated }: Props) => {
 
                 <div className="retro-card-outline cursor-pointer flex items-center justify-between gap-3 px-4 py-3">
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-10 h-10 rounded-[12px] retro-dotted bg-white flex items-center justify-center shrink-0">
+                    <div className="w-10 h-10 rounded-[6px] retro-dotted bg-white flex items-center justify-center shrink-0">
                       <ImageIcon size={16} className="text-gray-600" />
                     </div>
                     <div className="min-w-0">

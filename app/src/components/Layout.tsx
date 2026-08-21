@@ -42,8 +42,8 @@ const LayoutInner = () => {
     location.pathname === '/test' && new URLSearchParams(location.search).get('view') === 'esp32';
 
   const statusLabel = sessionActive ? 'Chat in progress' : 'Ready on device';
-  const statusDotClass = sessionActive ? 'bg-emerald-500' : 'bg-green-400';
-  const statusTextClass = sessionActive ? 'text-emerald-700' : 'text-gray-600';
+  const statusDotClass = sessionActive ? 'led-on' : 'led-idle';
+  const statusTextClass = sessionActive ? 'text-emerald-700' : 'text-gray-500';
 
   useEffect(() => {
     let cancelled = false;
@@ -219,7 +219,7 @@ const LayoutInner = () => {
   }, [navigate]);
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-(--color-retro-bg)">
+    <div className="app-shell flex flex-col h-screen overflow-hidden">
       <div className="flex flex-1 min-h-0 overflow-hidden">
         <Sidebar />
         <main className={`flex-1 min-h-0 overflow-y-auto ${location.pathname === '/test' ? 'p-0 pb-36' : 'p-8 pb-36'}`}>
@@ -230,11 +230,11 @@ const LayoutInner = () => {
         {activeUser?.current_personality_id && (
           <div className="session-dock fixed bottom-0 z-20 left-64 right-0 pointer-events-none">
             <div className="session-dock-wrap max-w-4xl mx-auto px-8 pb-6 pointer-events-auto">
-              <div className="session-dock-inner bg-white border border-gray-200 rounded-full px-5 py-4 shadow-xl">
+              <div className="session-dock-inner px-4 py-3">
                 <div className="flex items-center justify-between gap-4">
-                  <div className="min-w-0 flex items-center gap-4">
+                  <div className="min-w-0 flex items-center gap-3">
                   {activePersonalityImageSrc && !activePersonalityImageError && (
-                    <div className="w-12 h-12 rounded-full overflow-hidden bg-white border border-gray-200">
+                    <div className="w-11 h-11 rounded-[6px] overflow-hidden bg-white border border-gray-200">
                       <img
                         src={activePersonalityImageSrc}
                         alt=""
@@ -244,11 +244,11 @@ const LayoutInner = () => {
                     </div>
                   )}
                   <div className="min-w-0">
-                    <div className="font-mono text-xs text-gray-500 flex items-center gap-2">
-                      <span className={`w-2 h-2 rounded-full border border-gray-300 ${statusDotClass} ${sessionActive ? 'retro-blink' : ''}`} />
+                    <div className="label-mono flex items-center gap-2">
+                      <span className={`led ${statusDotClass} ${sessionActive ? 'retro-blink' : ''}`} />
                       <span className={statusTextClass}>{statusLabel}</span>
                     </div>
-                    <div className="mt-1 font-black text-base text-black truncate">{activePersonalityName || '—'}</div>
+                    <div className="mt-1 font-display font-bold text-[17px] text-black truncate">{activePersonalityName || '—'}</div>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
@@ -257,7 +257,7 @@ const LayoutInner = () => {
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
-                          className="retro-btn retro-btn-green no-lift px-5 py-2 text-sm flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                          className="retro-btn retro-btn-green no-lift px-4 flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
                           onClick={async () => {
                             if (needsVoiceDownload && activeVoiceId) {
                               navigate(`/voices?voice_id=${encodeURIComponent(String(activeVoiceId))}`);
@@ -282,7 +282,7 @@ const LayoutInner = () => {
                         </button>
                         <button
                           type="button"
-                          className="retro-btn retro-btn-purple no-lift w-11 h-10 p-0 flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed"
+                          className="retro-btn retro-btn-purple no-lift w-10 h-[34px] p-0 flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed"
                           onClick={() => {
                             if (needsVoiceDownload && activeVoiceId) {
                               navigate(`/voices?voice_id=${encodeURIComponent(String(activeVoiceId))}`);
@@ -342,8 +342,8 @@ const LayoutInner = () => {
                   </div>
                 </div>
                 </div>
-                <div className="mt-2 text-center text-[11px] leading-tight font-mono text-gray-400">
-                  The AI models can be wrong. Please verify important information.
+                <div className="mt-2.5 pt-2 border-t border-gray-100 text-center text-[11px] leading-tight font-mono text-gray-500">
+                  Models can be wrong — verify important information.
                 </div>
               </div>
             </div>

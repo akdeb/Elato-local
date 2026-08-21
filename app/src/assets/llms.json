@@ -1,6 +1,46 @@
 [
-{
-"id": "qwen3.5-4b-mlx-4bit",
+  {
+    "id": "gemma-4-26b-a4b-4bit",
+    "name": "Gemma 4 26B A4B MLX 4bit",
+    "repo_id": "mlx-community/gemma-4-26b-a4b-it-4bit",
+    "params": "26B",
+    "quantization": "4bit",
+    "specialty": "general",
+    "thinking": true,
+    "vision": true
+  },
+  {
+    "id": "gemma-4-12b-4bit",
+    "name": "Gemma 4 12B MLX 4bit",
+    "repo_id": "mlx-community/gemma-4-12B-it-4bit",
+    "params": "12B",
+    "quantization": "4bit",
+    "specialty": "general",
+    "thinking": true,
+    "vision": true
+  },
+  {
+    "id": "qwen3.8-27b-4bit",
+    "name": "Qwen3.8 27B MLX 4bit",
+    "repo_id": "mlx-community/Qwen3.8-27B-4bit",
+    "params": "27B",
+    "quantization": "4bit",
+    "specialty": "general",
+    "thinking": true,
+    "vision": true
+  },
+  {
+    "id": "muse-glimmer-30b-4bit",
+    "name": "Muse Glimmer 30B MLX 4bit",
+    "repo_id": "mlx-community/Muse-Glimmer-30B-4bit",
+    "params": "30B",
+    "quantization": "4bit",
+    "specialty": "general",
+    "thinking": true,
+    "vision": true
+  },
+  {
+    "id": "qwen3.5-4b-mlx-4bit",
     "name": "Qwen3.5 4B MLX 4bit",
     "repo_id": "mlx-community/Qwen3.5-4B-MLX-4bit",
     "params": "4B",
@@ -8,9 +48,9 @@
     "specialty": "general",
     "thinking": false,
     "vision": true
-},
-{
-"id": "qwen3.5-9b-mlx-4bit",
+  },
+  {
+    "id": "qwen3.5-9b-mlx-4bit",
     "name": "Qwen3.5 9B MLX 4bit",
     "repo_id": "mlx-community/Qwen3.5-9B-MLX-4bit",
     "params": "9B",
@@ -18,7 +58,7 @@
     "specialty": "general",
     "thinking": false,
     "vision": true
-},
+  },
   {
     "id": "qwen3.5-2b-bf16",
     "name": "Qwen3.5 2B BF16",

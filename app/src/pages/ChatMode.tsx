@@ -42,7 +42,7 @@ export const ChatModePage = () => {
   return (
     <div>
       <div className="flex justify-between items-center mb-8">
-        <h2 className="text-3xl font-black">CHAT MODE</h2>
+        <h2 className="font-display text-2xl font-bold">Chat Mode</h2>
         <button type="button" className="retro-btn" onClick={disable}>
           Disable
         </button>

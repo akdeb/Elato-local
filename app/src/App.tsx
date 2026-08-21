@@ -125,29 +125,32 @@ function SetupGate() {
 }
 
 import { ActiveUserProvider } from "./state/ActiveUserContext";
+import { AudienceModeProvider } from "./state/AudienceModeContext";
 import { Logo } from "./components/Logo";
 
 function App() {
   return (
     <ActiveUserProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/setup" element={<SetupPage />} />
+      <AudienceModeProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/setup" element={<SetupPage />} />
 
-          <Route path="/" element={<SetupGate />}>
-            <Route index element={<Playground />} />
-            <Route path="playground" element={<Playground />} />
-            <Route path="voices" element={<VoicesPage />} />
-            <Route path="users" element={<UsersPage />} />
-            <Route path="conversations" element={<Conversations />} />
-            <Route path="test" element={<TestPage />} />
-            <Route path="chat" element={<ChatModePage />} />
-            <Route path="settings" element={<Settings />} />
-          </Route>
+            <Route path="/" element={<SetupGate />}>
+              <Route index element={<Playground />} />
+              <Route path="playground" element={<Playground />} />
+              <Route path="voices" element={<VoicesPage />} />
+              <Route path="users" element={<UsersPage />} />
+              <Route path="conversations" element={<Conversations />} />
+              <Route path="test" element={<TestPage />} />
+              <Route path="chat" element={<ChatModePage />} />
+              <Route path="settings" element={<Settings />} />
+            </Route>
 
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </BrowserRouter>
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </BrowserRouter>
+      </AudienceModeProvider>
     </ActiveUserProvider>
   );
 }

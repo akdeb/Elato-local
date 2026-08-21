@@ -122,7 +122,7 @@ export function UserModal({ open, mode, user, onClose, onSuccess }: UserModalPro
           <div className="relative">
             <button
               type="button"
-              className="w-14 h-14 rounded-[16px] border border-gray-200 bg-white flex items-center justify-center"
+              className="w-14 h-14 rounded-[6px] border border-gray-200 bg-white flex items-center justify-center"
               onClick={() => setShowPicker((v) => !v)}
               aria-label="Choose avatar emoji"
             >
@@ -133,7 +133,7 @@ export function UserModal({ open, mode, user, onClose, onSuccess }: UserModalPro
             </div>
             {showPicker && (
               <div className="absolute left-0 mt-2 z-50">
-                <div className="bg-white border border-gray-200 rounded-[16px] shadow-[0_12px_28px_rgba(0,0,0,0.12)] p-2">
+                <div className="bg-white border border-gray-200 rounded-[6px] shadow-md p-2">
                   <EmojiPicker
                     onEmojiClick={handleEmojiClick}
                     height={320}

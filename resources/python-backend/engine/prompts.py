@@ -6,6 +6,16 @@ import re
 from typing import Optional
 
 
+# Audience mode. "kid" is the guarded default; see normalize_audience().
+KID = "kid"
+ADULT = "adult"
+
+
+def normalize_audience(value: Optional[str]) -> str:
+    """Anything that is not explicitly "adult" resolves to the guarded mode."""
+    return ADULT if str(value or "").strip().lower() == ADULT else KID
+
+
 def build_behavior_constraints(
     *,
     tts_backend: str,
@@ -13,12 +23,16 @@ def build_behavior_constraints(
     personality_name: Optional[str] = None,
     is_bedtime: bool = False,
     thinking_model: bool = False,
+    audience: str = KID,
 ) -> str:
+    audience = normalize_audience(audience)
     parts: list[str] = [
         "You always respond with spoken-friendly sentences. "
         "Do not use Markdown formatting (no *, **, _, __, backticks). "
         "Do not use emojis."
     ]
+
+    parts.append(_audience_constraints(audience))
 
     if tts_backend == "chatterbox-turbo":
         parts.append(
@@ -29,11 +43,11 @@ def build_behavior_constraints(
         )
 
     if is_bedtime:
-        parts.append(_bedtime_constraints())
+        parts.append(_bedtime_constraints(audience))
     elif experience_type == "game":
         parts.append(_game_constraints(personality_name))
     elif experience_type == "story":
-        parts.append(_story_constraints())
+        parts.append(_story_constraints(audience))
     else:
         parts.append(_conversation_constraints(tts_backend=tts_backend))
 
@@ -66,27 +80,69 @@ def _game_constraints(personality_name: Optional[str] = None) -> str:
     return base
 
 
-def _story_constraints() -> str:
+def _audience_constraints(audience: str) -> str:
+    """Who is on the other end of the speaker.
+
+    Kid mode is the product's guarded default: this is a children's toy, and the
+    listener may be very young. Adult mode drops the child-directed guardrails
+    and behaves like a general-purpose assistant - it does not instruct the model
+    to abandon its own safety behaviour.
+    """
+    if audience == ADULT:
+        return (
+            "You are speaking with an adult. "
+            "Do not simplify your vocabulary or sanitise topics on the assumption of a child listener. "
+            "Mature themes, frank language, and complex or uncomfortable subjects are all in scope "
+            "when the conversation calls for them, and you may match the user's tone and register. "
+            "Answer directly rather than deflecting, and skip unsolicited warnings and moralising."
+        )
     return (
-        "You are an interactive choose-your-adventure storyteller for kids. "
+        "You are speaking with a child, and everything you say must be appropriate for one. "
+        "Keep vocabulary simple and sentences short. "
+        "Do not discuss sex, drugs, self-harm, graphic violence, or other adult topics, "
+        "and do not use profanity or frightening imagery. "
+        "If the child raises something upsetting or unsafe, respond briefly and kindly "
+        "and encourage them to talk to a parent or another trusted grown-up. "
+        "Stay warm, encouraging, and patient."
+    )
+
+
+def _story_constraints(audience: str = KID) -> str:
+    base = (
+        "You are an interactive choose-your-adventure storyteller. "
         "After a short scene, offer exactly two clear choices and then wait for the user's decision. "
-        "Keep the story coherent, playful, and safe. "
+        "Keep the story coherent and engaging."
+    )
+    if audience == ADULT:
+        return (
+            base + " You may write for an adult audience: richer vocabulary, longer scenes, "
+            "and genuine tension or darker themes are all fair game."
+        )
+    return (
+        base + " Keep it playful and safe. "
         "Keep sentences short, warm, and simple. Avoid scary or complex themes."
     )
 
 
-def _bedtime_constraints() -> str:
-    return (
+def _bedtime_constraints(audience: str = KID) -> str:
+    base = (
         "You are in bedtime mode. You are the story director agent responsible for "
         "plot planning, pacing, and chapter transitions in a single continuous bedtime story scene. "
         "Do not ask questions, do not offer choices, and do not wait for user input. "
         "Keep the narrative flowing gently with soothing sleepy pacing. "
         "Each continuation should feel like the next chapter of the same story world. "
-        "Make it fun for kids: add one playful discovery or tiny wonder in each chapter. "
         "Never repeat previous lines verbatim. Keep variety in imagery and actions. "
-        "Keep sentences short, warm, and simple. Avoid scary or complex themes. "
         "Write as a narrated scene, not as a summary. "
         "Use natural pauses with occasional ellipses (...) and varied sentence lengths for expressive TTS delivery."
+    )
+    if audience == ADULT:
+        return (
+            base + " Write for an adult listener winding down: unhurried, atmospheric, "
+            "and free to use richer language and more layered imagery."
+        )
+    return (
+        base + " Make it fun for kids: add one playful discovery or tiny wonder in each chapter. "
+        "Keep sentences short, warm, and simple. Avoid scary or complex themes."
     )
 
 
@@ -111,8 +167,22 @@ def _conversation_constraints(*, tts_backend: str) -> str:
 # Greeting prompts
 # ---------------------------------------------------------------------------
 
-def greeting_prompt(experience_type: str) -> tuple[str, int]:
+# A reasoning model spends tokens on its analysis channel before it writes a
+# word the user hears. At the plain greeting budget the whole allowance goes to
+# thinking, the reply is stripped to nothing, and the caller falls back to a
+# canned greeting - so give those models room to finish and answer.
+REASONING_GREETING_HEADROOM = 400
+
+
+def greeting_prompt(experience_type: str, thinking: bool = False) -> tuple[str, int]:
     """Return (user_text, max_tokens) for the initial greeting."""
+    text, max_tokens = _greeting_prompt(experience_type)
+    if thinking:
+        max_tokens += REASONING_GREETING_HEADROOM
+    return text, max_tokens
+
+
+def _greeting_prompt(experience_type: str) -> tuple[str, int]:
     if experience_type == "game":
         return (
             "[System] The user just connected. Give a short greeting and immediately start the game "

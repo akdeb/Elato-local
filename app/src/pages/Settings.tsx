@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
-import { RefreshCw, Brain, Radio, MonitorUp, Rss, Zap, Mic, Network } from 'lucide-react';
+import { RefreshCw, Brain, Radio, MonitorUp, Rss, Zap, Mic, Network, ShieldCheck, Package } from 'lucide-react';
+import { useAudienceMode, type AudienceMode } from '../state/AudienceModeContext';
 import { ModelSwitchModal } from '../components/ModelSwitchModal';
 import { LlmSelector } from '../components/LlmSelector';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 
 type ModelConfig = {
   llm: {
@@ -51,7 +53,36 @@ const TTS_OPTIONS: Array<{
   },
 ];
 
+type DepsProgress = {
+  step: number;
+  steps: number;
+  phase: 'downloading' | 'installing' | 'done';
+  package: string;
+  downloaded: number;
+  total: number | null;
+};
+
+const formatElapsed = (seconds: number) => {
+  const m = Math.floor(seconds / 60);
+  const sec = seconds % 60;
+  return m > 0 ? `${m}m ${String(sec).padStart(2, '0')}s` : `${sec}s`;
+};
+
+const AUDIENCE_OPTIONS: Array<{ id: AudienceMode; name: string; blurb: string }> = [
+  {
+    id: 'kid',
+    name: 'For Kids',
+    blurb: 'Age-appropriate replies with child-safety guardrails, and the playful toy interface.',
+  },
+  {
+    id: 'adult',
+    name: 'For Adults',
+    blurb: 'Normal assistant behaviour without the child guardrails, and the full workbench interface.',
+  },
+];
+
 export const Settings = () => {
+  const { mode: audienceMode, setMode: setAudienceMode, loaded: audienceLoaded } = useAudienceMode();
   const [models, setModels] = useState<ModelConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [llmRepo, setLlmRepo] = useState('');
@@ -69,6 +100,11 @@ export const Settings = () => {
   const [micEnabled, setMicEnabled] = useState(false);
   const [localNetworkRequested, setLocalNetworkRequested] = useState(false);
   const [systemProfile, setSystemProfile] = useState<SystemProfile | null>(null);
+  const [updatingDeps, setUpdatingDeps] = useState(false);
+  const [depsProgress, setDepsProgress] = useState<DepsProgress | null>(null);
+  const [depsStatus, setDepsStatus] = useState<string | null>(null);
+  const [depsError, setDepsError] = useState<string | null>(null);
+  const [depsElapsed, setDepsElapsed] = useState(0);
 
   // Model switch modal state
   const [showSwitchModal, setShowSwitchModal] = useState(false);
@@ -342,16 +378,73 @@ export const Settings = () => {
     setPendingTtsBackend('');
   };
 
+
+  // pip only reports progress if we stream it, so the Rust side emits a
+  // deps-progress event per package rather than blocking until it finishes.
+  useEffect(() => {
+    if (!updatingDeps) return;
+    const started = Date.now();
+    setDepsElapsed(0);
+    const id = window.setInterval(
+      () => setDepsElapsed(Math.floor((Date.now() - started) / 1000)),
+      1000
+    );
+    return () => window.clearInterval(id);
+  }, [updatingDeps]);
+
+  const updatePythonPackages = async () => {
+    setUpdatingDeps(true);
+    setDepsError(null);
+    setDepsProgress(null);
+    setDepsStatus('Starting...');
+
+    const unlisten = await listen<DepsProgress>('deps-progress', (event) => {
+      if (event.payload) {
+        setDepsProgress(event.payload);
+        setDepsStatus(null);
+      }
+    }).catch(() => null);
+
+    try {
+      await invoke('install_python_deps');
+      setDepsProgress(null);
+      setDepsStatus('Restarting engine...');
+      await invoke('restart_backend');
+
+      // The replacement process has to be up before the app talks to it again.
+      const deadline = Date.now() + 60_000;
+      for (;;) {
+        try {
+          await api.health();
+          break;
+        } catch {
+          if (Date.now() > deadline) throw new Error('Engine did not restart. Reopen the app.');
+          await new Promise((r) => setTimeout(r, 500));
+        }
+      }
+
+      setDepsStatus('Up to date');
+      await loadSettings();
+    } catch (e: any) {
+      setDepsError(e?.message || String(e) || 'Update failed');
+      setDepsStatus(null);
+      setDepsProgress(null);
+    } finally {
+      if (unlisten) unlisten();
+      setUpdatingDeps(false);
+    }
+  };
+
   const selectedTtsMeta = TTS_OPTIONS.find((o) => o.id === ttsBackend) || null;
 
   return (
     <div className="settings-page space-y-6">
       <div className="flex items-start justify-between gap-4">
-        <h2 className="text-3xl font-black flex items-center gap-3 settings-title">
-          SETTINGS
+        <h2 className="font-display text-2xl font-bold flex items-center gap-3 settings-title">
+          Settings
         </h2>
         {systemProfile && (
-          <div className="rounded-xl bg-white px-3 py-2 text-right">
+          <div className="rounded-[6px] bg-white px-3 py-2 text-right">
             <div className="text-xs font-bold text-gray-900">{systemProfile.chip || 'Unknown chip'}</div>
             <div className="text-[10px] text-gray-600 font-mono">
               {systemProfile.total_memory_gb ? `${systemProfile.total_memory_gb} GB RAM` : 'RAM unknown'}
@@ -361,15 +454,49 @@ export const Settings = () => {
       </div>
       
       {error && (
-        <div className="p-4 bg-red-50 border border-red-200 text-red-700 font-bold rounded-[12px]">
+        <div className="p-4 bg-red-50 border border-red-200 text-red-700 font-bold rounded-[6px]">
           {error}
         </div>
       )}
       
-      <div className="retro-card settings-shell space-y-8 border border-gray-200 shadow-[0_12px_28px_rgba(0,0,0,0.06)]">
+      <div className="retro-card settings-shell space-y-8 border border-gray-200 shadow-sm">
         
-        {/* LLM Section */}
+        {/* Mode Section */}
         <div className="settings-section space-y-4">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="w-5 h-5" />
+            <h3 className="font-bold uppercase text-lg">Who is this for?</h3>
+          </div>
+          <p className="text-xs text-gray-600">
+            Sets how the assistant replies and how the app looks. Story mode works in both.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {AUDIENCE_OPTIONS.map((opt) => {
+              const selected = audienceMode === opt.id;
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  aria-pressed={selected}
+                  disabled={!audienceLoaded}
+                  onClick={() => { void setAudienceMode(opt.id); }}
+                  className={`retro-card text-left ${selected ? 'retro-selected' : 'retro-not-selected'} disabled:opacity-60`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-bold text-base">{opt.name}</span>
+                    {selected && (
+                      <span className="label-mono" style={{ color: 'var(--color-retro-accent)' }}>Active</span>
+                    )}
+                  </div>
+                  <p className="mt-1.5 text-xs text-gray-600">{opt.blurb}</p>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* LLM Section */}
+        <div className="settings-section pt-8 border-t border-gray-200 space-y-4">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-2">
               <Brain className="w-5 h-5" />
@@ -500,7 +627,7 @@ export const Settings = () => {
 
           <div className="mt-4">
             <div className="text-xs text-gray-500 uppercase mb-2">Output</div>
-            <pre className="bg-white border border-gray-200 rounded-[12px] p-3 text-xs font-mono whitespace-pre-wrap max-h-56 overflow-auto">
+            <pre className="bg-white border border-gray-200 rounded-[6px] p-3 text-xs font-mono whitespace-pre-wrap max-h-56 overflow-auto">
               {flashLog || '—'}
             </pre>
           </div>
@@ -544,7 +671,7 @@ export const Settings = () => {
                   setLaptopVolume(vol);
                   api.setSetting('laptop_volume', String(vol)).catch(console.error);
                 }}
-                className="retro-range w-full h-2 bg-white rounded-lg appearance-none cursor-pointer"
+                className="retro-range w-full h-2 bg-white rounded-[6px] appearance-none cursor-pointer"
                 style={{
                   background: `linear-gradient(#9b5cff 0 0) 0/${Math.max(0, Math.min(100, laptopVolume))}% 100% no-repeat, white`,
                 }}
@@ -554,13 +681,63 @@ export const Settings = () => {
           </div>
         </div>
 
+        {/* App Packages Section */}
+        <div className="settings-section pt-8 border-t border-gray-200 space-y-3">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <Package className="w-5 h-5" />
+              <h3 className="font-bold uppercase text-lg">App Packages</h3>
+            </div>
+            <button
+              type="button"
+              onClick={updatePythonPackages}
+              disabled={updatingDeps}
+              className="retro-btn retro-btn-outline settings-action text-gray-900 disabled:opacity-50 flex items-center gap-2"
+            >
+              <RefreshCw className={`w-4 h-4 ${updatingDeps ? 'animate-spin' : ''}`} />
+              {updatingDeps ? 'Updating' : 'Update'}
+            </button>
+          </div>
+
+          {!updatingDeps && !depsError && !depsStatus && (
+            <p className="text-xs text-gray-600">
+              The Python packages this app runs on. Redownload if a new model won't load.
+            </p>
+          )}
+
+          {(updatingDeps || depsStatus) && !depsError && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-3 text-xs font-mono">
+                <span className="truncate text-gray-700">
+                  {depsProgress?.phase === 'downloading' && `Downloading ${depsProgress.package}`}
+                  {depsProgress?.phase === 'installing' &&
+                    `Installing ${depsProgress.total ?? ''} packages`}
+                  {depsProgress?.phase === 'done' && 'Finishing up'}
+                  {!depsProgress && depsStatus}
+                </span>
+                <span className="shrink-0 text-gray-500 tabular">
+                  {depsProgress?.phase === 'downloading' && `${depsProgress.downloaded} · `}
+                  {formatElapsed(depsElapsed)}
+                </span>
+              </div>
+              {updatingDeps && (
+                <div className="h-1 w-full overflow-hidden rounded-full bg-gray-200">
+                  <div className="h-full w-1/3 animate-pulse rounded-full bg-[var(--color-retro-accent)]" />
+                </div>
+              )}
+            </div>
+          )}
+
+          {depsError && <p className="text-xs text-red-600 font-mono break-words">{depsError}</p>}
+        </div>
+
         <div className="settings-section pt-8 border-t border-gray-200 space-y-4">
           <div className="flex items-center gap-2">
             <Network className="w-5 h-5" />
             <h3 className="font-bold uppercase text-lg">Permissions</h3>
           </div>
           <div className="space-y-3">
-            <div className="rounded-xl border border-gray-200 bg-white px-4 py-3 flex items-center justify-between gap-4">
+            <div className="rounded-[6px] border border-gray-200 bg-white px-4 py-3 flex items-center justify-between gap-4">
               <div className="min-w-0">
                 <div className="text-sm font-bold uppercase tracking-wide flex items-center gap-2">
                   <Mic className="w-4 h-4" />
@@ -599,7 +776,7 @@ export const Settings = () => {
               </div>
             </div>
 
-            <div className="rounded-xl border border-gray-200 bg-white px-4 py-3 flex items-center justify-between gap-4">
+            <div className="rounded-[6px] border border-gray-200 bg-white px-4 py-3 flex items-center justify-between gap-4">
               <div className="min-w-0">
                 <div className="text-sm font-bold uppercase tracking-wide flex items-center gap-2">
                   <Network className="w-4 h-4" />

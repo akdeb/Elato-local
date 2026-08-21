@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { MessageSquare, Sparkles } from "lucide-react";
 import { ChatTranscript } from "../components/ChatTranscript";
+import { VoiceOrb } from "../components/VoiceOrb";
 import { useVoiceWs } from "../state/VoiceWsContext";
 import { api } from "../api";
 
@@ -10,6 +12,8 @@ type TranscriptEntry = {
   text: string;
   timestamp: number;
 };
+
+const TRANSCRIPT_VIEW_KEY = "elato.liveShowTranscript";
 
 export const TestPage = () => {
   const voiceWs = useVoiceWs();
@@ -129,10 +133,10 @@ export const TestPage = () => {
   const effectiveStatus = viewOnly ? (deviceConnected ? "connected" : "disconnected") : voiceWs.status;
   const statusDotClass =
     effectiveStatus === "connected"
-      ? "bg-[#00c853]"
+      ? "led-on"
       : effectiveStatus === "error"
-        ? "bg-red-500"
-        : "bg-[#ffd400]";
+        ? "led-error"
+        : "led-idle";
 
   const micStatusLabel = useMemo(() => {
     if (viewOnly) return null;
@@ -152,77 +156,120 @@ export const TestPage = () => {
     return base + mic + speak;
   }, [voiceWs.isBedtimeMode, voiceWs.isRecording, voiceWs.isPaused, voiceWs.micLevel, voiceWs.isSpeaking, viewOnly]);
 
+  // Default is the orb-only view; the transcript is opt-in.
+  const [showTranscript, setShowTranscript] = useState<boolean>(
+    () => localStorage.getItem(TRANSCRIPT_VIEW_KEY) === "1"
+  );
+  const toggleTranscript = () => {
+    setShowTranscript((prev) => {
+      const next = !prev;
+      localStorage.setItem(TRANSCRIPT_VIEW_KEY, next ? "1" : "0");
+      return next;
+    });
+  };
+
   const displayTranscript = viewOnly ? deviceTranscript : voiceWs.transcript;
 
   return (
-    <div className="live-page -mt-8">
+    <div className="live-page -mt-8 flex flex-col min-h-[calc(100vh-9rem)]">
       <div className="sticky top-0 z-30 pt-6 pb-4">
-        <div className="live-header-surface flex justify-between items-start gap-6 rounded-[28px] border border-gray-200 bg-white px-6 py-6 shadow-[0_12px_30px_rgba(0,0,0,0.08)]">
+        <div className="live-header-surface flex justify-between items-start gap-6 border border-gray-200 bg-white px-5 py-5 shadow-sm">
           <div>
-            <h2 className="text-3xl font-black live-title">LIVE</h2>
-            <div className="mt-2 font-mono text-xs text-gray-600 live-meta">
-              Character: <span className="font-bold text-black">{voiceWs.characterName}</span>
+            <h2
+              className="label-mono live-title inline-flex items-center gap-2"
+              style={{ color: 'var(--ink)' }}
+            >
+              <span className={`led ${statusDotClass} ${effectiveStatus === "connected" ? "retro-blink" : ""}`} />
+              Live
+            </h2>
+            <div className="mt-2 font-mono text-xs text-gray-500 live-meta">
+              character <span className="font-bold text-black">{voiceWs.characterName}</span>
             </div>
-            <div className="mt-1 font-mono text-xs text-gray-600 inline-flex items-center gap-2 live-meta">
-              <span className={`w-2.5 h-2.5 rounded-full border border-black ${statusDotClass}`} />
-              <span className="capitalize">{effectiveStatus}</span>
-              {micStatusLabel && (
-                <span className="text-gray-500">
-                  • {micStatusLabel}
-                </span>
-              )}
+            <div className="mt-1 font-mono text-xs text-gray-500 inline-flex items-center gap-2 live-meta">
+              <span>{effectiveStatus}</span>
+              {micStatusLabel && <span className="text-gray-400">· {micStatusLabel}</span>}
             </div>
             {!viewOnly && voiceWs.error && (
               <div className="mt-3 font-mono text-xs text-red-700">{voiceWs.error}</div>
             )}
           </div>
 
-        <div className="flex flex-col items-center">
-            <div
-              className="rounded-full shadow-[0_14px_30px_rgba(0,0,0,0.18)] transition-shadow"
-              aria-hidden
-              style={{
-              width: 96,
-              height: 96,
-                transform: `scale(${orbScale})`,
-                transition: "transform 80ms linear",
-                opacity: voiceWs.status === "connected" ? 1 : 0.7,
-              }}
-            >
-              {voiceWs.characterImageSrc && !imageError ? (
-                <img
-                  src={voiceWs.characterImageSrc}
-                  alt=""
-                  className="w-full h-full rounded-full border border-gray-500 object-cover bg-white live-orb-image"
-                  onError={() => setImageError(true)}
-                />
-              ) : (
-                <div className="w-full h-full rounded-full border border-gray-500 bg-orange-50/50" style={{
-                            backgroundImage: `radial-gradient(circle, rgba(0,0,0,0.08) 1px, transparent 1px)`,
-                            backgroundSize: '6px 6px'
-                        }} />
-              )}
+          <div className="flex items-start gap-4">
+            {/* In transcript view the orb lives up here, beside the character. */}
+            {showTranscript && effectiveStatus === "connected" && (
+              // Match the avatar's box so the two sit on the same centre line.
+              <div className="flex items-center" style={{ height: 88 }}>
+                <VoiceOrb viewOnly={viewOnly} deviceConnected={deviceConnected} size={72} />
+              </div>
+            )}
+
+            <div className="flex flex-col items-center">
+              <div
+                className="rounded-[8px] transition-shadow"
+                aria-hidden
+                style={{
+                  width: 88,
+                  height: 88,
+                  transform: `scale(${orbScale})`,
+                  transition: "transform 80ms linear",
+                  opacity: voiceWs.status === "connected" ? 1 : 0.7,
+                }}
+              >
+                {voiceWs.characterImageSrc && !imageError ? (
+                  <img
+                    src={voiceWs.characterImageSrc}
+                    alt=""
+                    className="w-full h-full rounded-[8px] border border-gray-200 object-cover bg-white live-orb-image"
+                    onError={() => setImageError(true)}
+                  />
+                ) : (
+                  <div className="retro-grid w-full h-full rounded-[8px] border border-gray-200" />
+                )}
+              </div>
+
+              <div className="mt-3 label-mono text-center">
+                {effectiveStatus === "connecting" && "Connecting…"}
+                {effectiveStatus === "error" && "WebSocket error"}
+                {effectiveStatus === "disconnected" && "Disconnected"}
+                {effectiveStatus === "connected" && "Live"}
+              </div>
             </div>
 
-            <div className="mt-3 font-mono text-xs text-gray-600 text-center">
-              {effectiveStatus === "connecting" && "Connecting…"}
-              {effectiveStatus === "error" && "WebSocket error"}
-              {effectiveStatus === "disconnected" && "Disconnected"}
-              {effectiveStatus === "connected" && "Live"}
-            </div>
+            <button
+              type="button"
+              onClick={toggleTranscript}
+              className="retro-icon-btn shrink-0"
+              title={showTranscript ? "Show orb only" : "Show chat"}
+              aria-label={showTranscript ? "Show orb only" : "Show chat"}
+              aria-pressed={showTranscript}
+            >
+              {showTranscript ? <Sparkles size={16} /> : <MessageSquare size={16} />}
+            </button>
           </div>
         </div>
       </div>
 
-      <div className="space-y-3 pt-6 pb-4">
-        <ChatTranscript
-          messages={displayTranscript}
-          isLive
-          autoScroll
-          scrollMarginTop={200}
-          progressiveAi
-        />
-      </div>
+      {showTranscript ? (
+        <div className="space-y-3 pt-6 pb-4">
+          <ChatTranscript
+            messages={displayTranscript}
+            isLive
+            autoScroll
+            scrollMarginTop={200}
+            progressiveAi
+          />
+        </div>
+      ) : (
+        // Orb-only view: the orb sits in the middle of the empty space, with the
+        // session controls in the dock at the bottom of the window.
+        <div className="live-orb-stage flex flex-1 items-center justify-center py-10">
+          {effectiveStatus === "connected" ? (
+            <VoiceOrb viewOnly={viewOnly} deviceConnected={deviceConnected} size={280} />
+          ) : (
+            <div className="label-mono text-center opacity-60">{effectiveStatus}</div>
+          )}
+        </div>
+      )}
     </div>
   );
 };

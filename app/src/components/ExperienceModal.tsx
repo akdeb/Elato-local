@@ -244,7 +244,7 @@ export function ExperienceModal({
                 <div className="rounded-full">
                      <img src={logoPng} alt="" className="w-10 h-10" />
                 </div>
-                <h3 className="font-black text-2xl uppercase mt-2">build a character</h3>
+                <h3 className="font-display text-xl font-bold uppercase mt-2">build a character</h3>
                 {createVoiceId && (
                   <div className="font-mono text-xs text-gray-700">
                     Create with {createVoiceName || createVoiceId}
@@ -257,7 +257,7 @@ export function ExperienceModal({
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     placeholder={labels.placeholder}
-                    className="w-full min-h-[120px] p-4 pr-14 rounded-[20px] border-2 border-black resize-none text-lg bg-white focus:outline-none shadow-inner placeholder:text-gray-500"
+                    className="w-full min-h-[120px] p-4 pr-14 rounded-[8px] border border-gray-200 resize-none text-lg bg-white focus:outline-none shadow-inner placeholder:text-gray-500"
                     onKeyDown={(e) => {
                         if (e.key === 'Enter' && !e.shiftKey) {
                             e.preventDefault();
@@ -268,7 +268,7 @@ export function ExperienceModal({
                 <button 
                     onClick={submitCreate}
                     disabled={submitting || !description.trim()}
-                    className={`absolute bottom-3 right-3 w-10 h-10 rounded-full flex items-center justify-center ${(!submitting && !!description.trim()) ? 'cursor-pointer bg-green-500 text-white hover:brightness-105 active:translate-x-0 active:translate-y-0 active:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 focus-visible:ring-offset-white' : 'bg-gray-200 text-gray-700 border-transparent hover:border-black'}`}
+                    className={`absolute bottom-3 right-3 w-10 h-10 rounded-full flex items-center justify-center ${(!submitting && !!description.trim()) ? 'cursor-pointer bg-green-500 text-white hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 focus-visible:ring-offset-white' : 'bg-gray-200 text-gray-700 border-transparent hover:border-black'}`}
                 >
                     {submitting ? (
                         <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
@@ -302,7 +302,7 @@ export function ExperienceModal({
                 <p className="text-xs text-gray-500">(Click to edit)</p>
               </div>
               <label
-                className="w-full h-[180px] rounded-[20px] border bg-orange-50/50 border-gray-200 flex items-center justify-center overflow-hidden cursor-pointer"
+                className="retro-grid w-full h-[180px] rounded-[8px] border border-gray-200 flex items-center justify-center overflow-hidden cursor-pointer"
                 style={{
                   backgroundImage: `radial-gradient(circle, rgba(0,0,0,0.08) 1px, transparent 1px)`,
                   backgroundSize: "6px 6px",

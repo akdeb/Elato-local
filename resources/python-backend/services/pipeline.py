@@ -1,9 +1,5 @@
 import asyncio
-import json
 import os
-import re
-from pathlib import Path
-from typing import Dict
 
 import mlx.core as mx
 import numpy as np
@@ -13,7 +9,7 @@ from mlx_lm.utils import load as load_llm
 from mlx_audio.stt import load as load_stt
 
 from tts import ChatterboxTTS, Qwen3TTS
-from utils import STT, LLM, TTS, QWEN3_TTS, resolve_local_model_source
+from utils import STT, LLM, TTS, QWEN3_TTS, resolve_local_model_source, strip_reasoning
 
 try:
     from mlx_vlm import generate as mx_vlm_generate
@@ -23,31 +19,6 @@ except Exception:
     mx_vlm_generate = None
     load_vlm = None
     mx_vlm_stream_generate = None
-
-LLM_PROFILE_CACHE: Dict[str, Dict[str, object]] = {}
-
-
-def _load_llm_profiles() -> Dict[str, Dict[str, object]]:
-    if LLM_PROFILE_CACHE:
-        return LLM_PROFILE_CACHE
-    repo_root = Path(__file__).resolve().parents[3]
-    llms_path = repo_root / "app" / "src" / "assets" / "llms.json"
-    if not llms_path.exists():
-        return {}
-    try:
-        data = json.loads(llms_path.read_text(encoding="utf-8"))
-        for item in data if isinstance(data, list) else []:
-            if isinstance(item, dict) and isinstance(item.get("repo_id"), str):
-                LLM_PROFILE_CACHE[item["repo_id"]] = item
-    except Exception:
-        return {}
-    return LLM_PROFILE_CACHE
-
-
-def _is_vision_model(repo_id: str) -> bool:
-    profile = _load_llm_profiles().get(repo_id)
-    return bool(profile and profile.get("vision"))
-
 
 def _env_flag(name: str) -> bool:
     value = str(os.environ.get(name, "")).strip().lower()
@@ -62,18 +33,24 @@ def _env_flag_with_default_true(name: str) -> bool:
 
 
 def _strip_thinking(text: str) -> str:
-    if not text:
-        return text
-    cleaned = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL | re.IGNORECASE)
-    cleaned = re.sub(r"</?think>", "", cleaned, flags=re.IGNORECASE)
-    return cleaned.strip()
+    return strip_reasoning(text)
+
 
 def _strip_thinking_keep_ws(text: str) -> str:
-    if not text:
-        return text
-    cleaned = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL | re.IGNORECASE)
-    cleaned = re.sub(r"</?think>", "", cleaned, flags=re.IGNORECASE)
-    return cleaned
+    return strip_reasoning(text, trim=False, streaming=True)
+
+
+def _response_text(response) -> str:
+    """Pull the generated text out of whatever the backend returned.
+
+    mlx-vlm >= 0.6 returns a GenerationResult object where older versions
+    returned a plain string; str() on it yields the whole dataclass repr
+    (logprobs and all), which then flows into TTS. mlx-lm still returns a str.
+    """
+    if isinstance(response, tuple):
+        response = response[0]
+    text = getattr(response, "text", None)
+    return str(response) if text is None else str(text)
 
 
 def _is_unsupported_thinking_kw_error(exc: Exception) -> bool:
@@ -129,15 +106,25 @@ class VoicePipeline:
 
     def _load_llm_backend_sync(self, model_repo: str):
         # Prefer the already-downloaded local snapshot so loading works offline and
-        # skips the HF revision check (vision check below still keys off the repo id).
-        is_vision = _is_vision_model(model_repo)
+        # skips the HF revision check.
         model_repo = resolve_local_model_source(model_repo)
-        if is_vision:
+
+        # Nothing in this project ever sends an image to the LLM, so mlx-lm's
+        # text-only path is always the one we want: on a VLM checkpoint it skips the
+        # vision tower entirely, which measured ~30% faster decoding on Qwen3.8-27B
+        # (11.1 -> 14.5 tok/s, M4 Pro). mlx-vlm stays as the loader fallback, not as a
+        # capability choice -- some checkpoints (Muse Glimmer, Gemma 4) have no mlx-lm
+        # module at all and load only through it.
+        try:
+            llm, tokenizer = load_llm(model_repo)
+            return llm, tokenizer, "lm"
+        except Exception as lm_error:
             if load_vlm is None:
                 raise RuntimeError(
-                    "Model is marked vision=true in llms.json but mlx-vlm is unavailable. "
-                    "Install/update mlx-vlm in the backend environment."
-                )
+                    f"mlx-lm cannot load {model_repo} ({lm_error}) and mlx-vlm is not "
+                    "available as a fallback. Install/update mlx-vlm in the backend "
+                    "environment."
+                ) from lm_error
 
             # Some VLM repos need trust_remote_code; try both paths for compatibility.
             trust_remote_code = _env_flag("MLX_TRUST_REMOTE_CODE")
@@ -156,19 +143,11 @@ class VoicePipeline:
                 except Exception as e:
                     vlm_errors.append(str(e))
 
-            # If model is marked vision but behaves like text-only, allow fallback.
-            try:
-                llm, tokenizer = load_llm(model_repo)
-                return llm, tokenizer, "lm"
-            except Exception as lm_error:
-                combined = "; ".join([err for err in vlm_errors if err]) or "unknown error"
-                raise RuntimeError(
-                    f"Failed to load vision model with mlx-vlm ({combined}) "
-                    f"and fallback mlx-lm also failed ({lm_error})."
-                ) from lm_error
-
-        llm, tokenizer = load_llm(model_repo)
-        return llm, tokenizer, "lm"
+            combined = "; ".join([err for err in vlm_errors if err]) or "unknown error"
+            raise RuntimeError(
+                f"Failed to load {model_repo} with mlx-lm ({lm_error}) "
+                f"and with mlx-vlm ({combined})."
+            ) from lm_error
 
     async def load_llm_backend(self, model_repo: str):
         return await asyncio.to_thread(lambda: self._load_llm_backend_sync(model_repo))
@@ -239,29 +218,39 @@ class VoicePipeline:
             )
         base_kwargs = dict(tokenize=False, add_generation_prompt=add_generation_prompt)
 
-        # Hard-disable thinking by default (can be overridden with MLX_DISABLE_THINKING=0).
-        if self.disable_thinking:
-            for thinking_kwargs in (
-                {"enable_thinking": False, "thinking_budget": 0},
-                {"enable_thinking": False},
-                {"clear_thinking": True},
-            ):
-                try:
-                    return self.tokenizer.apply_chat_template(
-                        messages, **base_kwargs, **thinking_kwargs
-                    )
-                except TypeError:
-                    continue
+        # Muse Glimmer has no on/off switch for reasoning - its template only takes
+        # reasoning_strength, and leaving it unset selects the template default
+        # ('high'), which burns the entire token budget on the inaudible analysis
+        # channel and returns nothing to speak. So always send a bounded value,
+        # including on the paths where thinking is deliberately left enabled.
+        # Measured on Muse Glimmer 30B: none=214 analysis tokens, low=239,
+        # off=294, unset=300 (no spoken output at all).
+        strength = "none" if self.disable_thinking else "low"
 
+        attempts: list[dict] = []
+        if self.disable_thinking:
+            attempts += [
+                {"enable_thinking": False, "thinking_budget": 0, "reasoning_strength": strength},
+                {"enable_thinking": False, "reasoning_strength": strength},
+                {"enable_thinking": False},
+                {"clear_thinking": True, "reasoning_strength": strength},
+                {"clear_thinking": True},
+            ]
         if clear_thinking is not None:
+            attempts += [
+                {"clear_thinking": clear_thinking, "reasoning_strength": strength},
+                {"clear_thinking": clear_thinking},
+            ]
+        # Last resorts: bounded reasoning with no other hints, then a bare render.
+        attempts += [{"reasoning_strength": strength}, {}]
+
+        for thinking_kwargs in attempts:
             try:
                 return self.tokenizer.apply_chat_template(
-                    messages,
-                    **base_kwargs,
-                    clear_thinking=clear_thinking,
+                    messages, **base_kwargs, **thinking_kwargs
                 )
             except TypeError:
-                pass
+                continue
 
         return self.tokenizer.apply_chat_template(messages, **base_kwargs)
 
@@ -287,9 +276,7 @@ class VoicePipeline:
                     verbose=False,
                     enable_thinking=False,
                 )
-            if isinstance(response, tuple):
-                response = response[0]
-            return _strip_thinking(str(response).strip())
+            return _strip_thinking(_response_text(response).strip())
 
         lm_kwargs = dict(
             prompt=prompt,
@@ -313,7 +300,7 @@ class VoicePipeline:
                 self.tokenizer,
                 **lm_kwargs,
             )
-        return _strip_thinking(response.strip())
+        return _strip_thinking(_response_text(response).strip())
 
     def _stream_generate_sync(self, prompt: str, max_tokens: int):
         if self.llm_backend == "vlm":

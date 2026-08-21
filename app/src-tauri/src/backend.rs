@@ -196,7 +196,6 @@ pub async fn start_backend(app: AppHandle) -> Result<String, String> {
         .env("ELATO_ASSETS_DIR", assets_dir.to_string_lossy().to_string())
         .env("TOKENIZERS_PARALLELISM", "false")
         .env("HF_HUB_DISABLE_XET", "1")
-        .env("HF_HUB_ENABLE_HF_TRANSFER", "1")
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit());
 
@@ -214,6 +213,19 @@ pub async fn start_backend(app: AppHandle) -> Result<String, String> {
     }
 
     Ok("Backend started".to_string())
+}
+
+/// Stop the backend and start it again.
+///
+/// Upgrading packages in the venv has no effect on a running interpreter - it
+/// already imported the old modules - so the process has to be replaced before
+/// new library versions take hold.
+#[tauri::command]
+pub async fn restart_backend(app: AppHandle) -> Result<String, String> {
+    stop_api_server(&app);
+    std::thread::sleep(Duration::from_millis(500));
+    ensure_port_free(8000);
+    start_backend(app).await
 }
 
 pub fn setup_backend(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
@@ -270,7 +282,6 @@ pub fn setup_backend(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Err
         .env("ELATO_ASSETS_DIR", assets_dir.to_string_lossy().to_string())
         .env("TOKENIZERS_PARALLELISM", "false")
         .env("HF_HUB_DISABLE_XET", "1")
-        .env("HF_HUB_ENABLE_HF_TRANSFER", "1")
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit());
 

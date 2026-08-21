@@ -69,12 +69,84 @@ def normalize_tts_backend(backend: Optional[str]) -> str:
     return "qwen3-tts"
 
 
-def strip_thinking(text: str) -> str:
+# Reasoning markup differs per model family, and all of it has to be removed
+# before the text reaches TTS - otherwise the toy reads its own scratchpad out
+# loud. The three shapes we support:
+#   Qwen3.x       <think> ... </think>
+#   Gemma 4       <|channel>thought ... <channel|>
+#   Muse Glimmer  <|start|>assistant to=self<|message|> ... <|eom|>
+_THINK_BLOCK_RE = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
+_THINK_OPEN_RE = re.compile(r"<think>.*", re.DOTALL | re.IGNORECASE)
+_THINK_TAG_RE = re.compile(r"</?think>", re.IGNORECASE)
+_CHANNEL_BLOCK_RE = re.compile(r"<\|channel>.*?<channel\|>", re.DOTALL)
+_CHANNEL_OPEN_RE = re.compile(r"<\|channel>.*", re.DOTALL)
+
+_CHANNEL_START = "<|start|>"
+_CHANNEL_MESSAGE = "<|message|>"
+_CHANNEL_END_RE = re.compile(r"<\|(?:eom|eot|return)\|>")
+
+# Generation resumes inside "<|start|>assistant", so the first tokens finish
+# that header (" to=user") rather than opening a new one. While the header is
+# still arriving it must not be mistaken for the reply itself.
+_PARTIAL_HEADER_RE = re.compile(r"^\s*(?:t(?:o(?:=\S*)?)?)?$")
+
+
+# The opening of a marker split across decoding steps: "<|st", "</thin", "<|eot|".
+# Deliberately narrow so ordinary prose containing "<" survives untouched.
+_PARTIAL_MARKER_RE = re.compile(r"<[|/a-z_]*\|?$", re.IGNORECASE)
+
+
+def _hold_partial_marker(text: str) -> str:
+    """Hold back a marker split across decoding steps until it completes."""
+    return _PARTIAL_MARKER_RE.sub("", text)
+
+
+def _strip_channel_markup(text: str, streaming: bool = False) -> str:
+    """Drop non-user channels from channel-formatted models (Muse Glimmer)."""
+    if _CHANNEL_MESSAGE not in text:
+        # A header with no body yet carries nothing worth showing.
+        return "" if streaming and _PARTIAL_HEADER_RE.match(text) else text
+
+    work = text if text.startswith(_CHANNEL_START) else _CHANNEL_START + text
+    kept: list[str] = []
+    for chunk in work.split(_CHANNEL_START):
+        if not chunk:
+            continue
+        header, sep, body = chunk.partition(_CHANNEL_MESSAGE)
+        if not sep:
+            # Header still streaming in - it has no body to show yet.
+            continue
+        if "to=" in header and "to=user" not in header:
+            # Analysis (to=self) or a tool-call channel: never spoken.
+            continue
+        kept.append(_CHANNEL_END_RE.split(body, maxsplit=1)[0])
+    return "".join(kept)
+
+
+def strip_reasoning(text: str, *, trim: bool = True, streaming: bool = False) -> str:
+    """Remove reasoning channels and control markup from model output.
+
+    ``streaming`` also drops unterminated reasoning blocks and trailing partial
+    markers, so the cleaned text only ever grows as tokens arrive - the caller
+    yields the difference between successive cleanups as its delta.
+    """
     if not text:
         return text
-    cleaned = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL | re.IGNORECASE)
-    cleaned = re.sub(r"</?think>", "", cleaned, flags=re.IGNORECASE)
-    return cleaned.strip()
+
+    cleaned = _THINK_BLOCK_RE.sub("", text)
+    cleaned = _CHANNEL_BLOCK_RE.sub("", cleaned)
+    if streaming:
+        cleaned = _THINK_OPEN_RE.sub("", cleaned)
+        cleaned = _CHANNEL_OPEN_RE.sub("", cleaned)
+    cleaned = _strip_channel_markup(cleaned, streaming=streaming)
+    cleaned = _THINK_TAG_RE.sub("", cleaned)
+    if streaming:
+        cleaned = _hold_partial_marker(cleaned)
+    return cleaned.strip() if trim else cleaned
+
+
+def strip_thinking(text: str) -> str:
+    return strip_reasoning(text)
 
 # Audio constants matching ESP32 expectations
 OPUS_SAMPLE_RATE = 24000  # 24kHz for TTS output

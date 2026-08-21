@@ -11,10 +11,9 @@ import uuid
 from contextlib import asynccontextmanager, suppress
 from typing import Dict, List, Optional
 
+# huggingface_hub freezes this into a constant at import time, so it has to be set
+# before the first `import huggingface_hub` anywhere in the process.
 os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
-os.environ.setdefault("HF_HUB_ENABLE_HF_TRANSFER", "1")
-os.environ.setdefault("HF_XET_DISABLE", "1")
-os.environ.setdefault("HF_HUB_DISABLE_HF_XET", "1")
 
 import mlx.core as mx
 import uvicorn
@@ -25,12 +24,13 @@ from fastapi.middleware.cors import CORSMiddleware
 
 import db_service
 import utils
-from utils import STT, LLM, create_opus_packetizer, normalize_tts_backend, is_thinking_model, strip_thinking
+from utils import STT, LLM, create_opus_packetizer, normalize_tts_backend, is_thinking_model
 from engine.characters import build_llm_messages, build_runtime_context, build_system_prompt
 from engine.conversation import build_context_history
 from engine.prompts import (
     build_behavior_constraints,
     greeting_prompt,
+    normalize_audience,
     bedtime_chapter_prompt,
     sanitize_bedtime_chapter,
 )
@@ -314,6 +314,13 @@ async def websocket_unified(websocket: WebSocket, client_type: str = Query(defau
         except Exception:
             return False
 
+    def _audience() -> str:
+        """Kid vs adult, set in Settings. Unset or unreadable resolves to kid."""
+        try:
+            return normalize_audience(db_service.db_service.get_setting("audience_mode"))
+        except Exception:
+            return normalize_audience(None)
+
     def _build_llm_context(user_text: str) -> List[Dict[str, str]]:
         runtime = build_runtime_context()
         user_ctx = None
@@ -330,6 +337,7 @@ async def websocket_unified(websocket: WebSocket, client_type: str = Query(defau
             tts_backend=tts_be, experience_type=exp_type,
             personality_name=getattr(personality, "name", None),
             is_bedtime=_is_bedtime(), thinking_model=thinking,
+            audience=_audience(),
         )
         sys_prompt = build_system_prompt(
             personality_name=getattr(personality, "name", None),
@@ -512,39 +520,6 @@ async def websocket_unified(websocket: WebSocket, client_type: str = Query(defau
                     cancel_event.set()
                     break
 
-    # --- Greeting ---
-    greeting_sent = False
-
-    if not _is_bedtime():
-        try:
-            g_text, g_max = greeting_prompt(exp_type)
-            msgs = _build_llm_context(g_text)
-            greeting = await pipeline.generate_response(g_text, messages=msgs, max_tokens=g_max, clear_thinking=True if thinking else None)
-            greeting = (greeting or "").strip() or "Hello!"
-            if thinking:
-                greeting = strip_thinking(greeting)
-            allow_para = normalize_tts_backend(getattr(pipeline, "tts_backend", None)) == "chatterbox-turbo"
-            greeting = sanitize_spoken_text(greeting, allow_paralinguistic=allow_para)
-            logger.info(f"{label} Greeting: {greeting}")
-            await _emit_ai_turn(greeting, for_esp32=is_esp32)
-            greeting_sent = True
-            try:
-                db_service.db_service.log_conversation(role="user", transcript="[connected]", session_id=session_id)
-            except Exception:
-                pass
-            try:
-                db_service.db_service.log_conversation(role="ai", transcript=greeting, session_id=session_id)
-            except Exception:
-                pass
-        except Exception as e:
-            logger.error(f"{label} Greeting failed: {e}")
-
-    # Desktop client starts mic after a readiness event. Keep this fallback for
-    # safety if greeting generation fails.
-    if not is_esp32 and not _is_bedtime() and not greeting_sent:
-        with suppress(Exception):
-            await websocket.send_text(json.dumps({"type": "ready_for_input"}))
-
     # --- Common state ---
 
     audio_buffer = bytearray()
@@ -598,30 +573,42 @@ async def websocket_unified(websocket: WebSocket, client_type: str = Query(defau
         bedtime_autoplay: bool = False,
         bedtime_chapter_index: int | None = None,
         bedtime_chapter_total: int | None = None,
-    ):
+        is_greeting: bool = False,
+        max_tokens: int | None = None,
+    ) -> str:
+        """Stream one turn: LLM tokens -> speakable phrases -> TTS -> socket.
+
+        Returns what was actually spoken, or "" if the model produced nothing.
+        """
         nonlocal cancel_event, ws_open, volume
 
         if not transcription or not transcription.strip():
-            return
+            return ""
         logger.info(f"{label} Transcript: {transcription}")
 
-        if for_esp32 and not bedtime_autoplay:
+        echo_input = not bedtime_autoplay and not is_greeting
+
+        if for_esp32 and echo_input:
             try:
                 await websocket.send_json({"type": "server", "msg": "AUDIO.COMMITTED"})
             except Exception:
-                return
-        elif not for_esp32 and not bedtime_autoplay:
+                return ""
+        elif not for_esp32 and echo_input:
             try:
                 await websocket.send_text(json.dumps({"type": "transcription", "text": transcription}))
             except Exception:
-                return
+                return ""
 
         cancel_event.clear()
         llm_messages = _build_llm_context(transcription)
 
         if not bedtime_autoplay:
             try:
-                db_service.db_service.log_conversation(role="user", transcript=transcription, session_id=session_id)
+                db_service.db_service.log_conversation(
+                    role="user",
+                    transcript="[connected]" if is_greeting else transcription,
+                    session_id=session_id,
+                )
             except Exception:
                 pass
 
@@ -634,19 +621,29 @@ async def websocket_unified(websocket: WebSocket, client_type: str = Query(defau
             try:
                 await websocket.send_json({"type": "server", "msg": "RESPONSE.CREATED", "volume_control": volume})
             except Exception:
-                return
+                return ""
 
         text_queue: asyncio.Queue = asyncio.Queue(maxsize=16)
         llm_parts: list[str] = []
         llm_error: list[Exception] = []
         carry = ""
 
+        # An opening chunk with no sentence-ending punctuation shouldn't sit in the
+        # buffer for a full soft_limit's worth of tokens -- that's dead air before
+        # the first word. Split it sooner, then relax once audio is flowing.
+        first_chunk_soft_limit = 110 if tts_be == "qwen3-tts" else 90
+        queued_any = False
+
         async def _llm_producer():
-            nonlocal carry
+            nonlocal carry, queued_any
             try:
+                stream_kwargs = {}
+                if max_tokens is not None:
+                    stream_kwargs["max_tokens"] = max_tokens
                 async for delta in pipeline.stream_response(
                     transcription, messages=llm_messages,
                     clear_thinking=True if thinking else None, cancel_event=cancel_event,
+                    **stream_kwargs,
                 ):
                     if cancel_event.is_set() or not ws_open:
                         break
@@ -657,10 +654,14 @@ async def websocket_unified(websocket: WebSocket, client_type: str = Query(defau
                         except Exception:
                             pass
                     carry += delta
-                    ready, carry = _extract_speakable_chunks(carry, flush=False, soft_limit=tts_soft_limit)
+                    ready, carry = _extract_speakable_chunks(
+                        carry, flush=False,
+                        soft_limit=tts_soft_limit if queued_any else first_chunk_soft_limit,
+                    )
                     for chunk in ready:
                         chunk = sanitize_spoken_text(chunk, allow_paralinguistic=allow_para).strip()
                         if chunk:
+                            queued_any = True
                             await text_queue.put(chunk)
             except asyncio.CancelledError:
                 return
@@ -684,19 +685,32 @@ async def websocket_unified(websocket: WebSocket, client_type: str = Query(defau
         tts_batch_timeout = 0.9
         tts_batch_max_sentences = 4
         tts_batch_min_sentences = 2
+        # The opening phrase alone decides how long the user waits in silence, so it
+        # goes to TTS as soon as there is anything worth saying. Everything after it
+        # batches harder: audio is already playing by then, and larger phrases give
+        # the TTS model more context and amortize its per-call overhead.
+        tts_first_max_sentences = 2
+        tts_first_target_chars = 90
+        tts_first_max_chars = 220
+        tts_first_timeout = 0.25
 
-        async def _next_tts_phrase() -> tuple[Optional[str], bool]:
-            first = await text_queue.get()
-            if first is None:
+        async def _next_tts_phrase(opening: bool = False) -> tuple[Optional[str], bool]:
+            head = await text_queue.get()
+            if head is None:
                 return None, True
-            parts = [first]
-            chars = len(first)
+            max_sentences = tts_first_max_sentences if opening else tts_batch_max_sentences
+            min_sentences = 1 if opening else tts_batch_min_sentences
+            target_chars = tts_first_target_chars if opening else tts_batch_target_chars
+            max_chars = tts_first_max_chars if opening else tts_batch_max_chars
+            timeout = tts_first_timeout if opening else tts_batch_timeout
+            parts = [head]
+            chars = len(head)
             ended = False
-            while len(parts) < tts_batch_max_sentences and chars < tts_batch_max_chars:
-                if len(parts) >= tts_batch_min_sentences and chars >= tts_batch_target_chars:
+            while len(parts) < max_sentences and chars < max_chars:
+                if len(parts) >= min_sentences and chars >= target_chars:
                     break
                 try:
-                    nxt = await asyncio.wait_for(text_queue.get(), timeout=tts_batch_timeout)
+                    nxt = await asyncio.wait_for(text_queue.get(), timeout=timeout)
                 except asyncio.TimeoutError:
                     break
                 if nxt is None:
@@ -713,10 +727,12 @@ async def websocket_unified(websocket: WebSocket, client_type: str = Query(defau
                 opus = create_opus_packetizer(lambda pkt: opus_packets.append(pkt))
                 try:
                     queue_ended = False
+                    spoken_phrases = 0
                     while True:
-                        phrase, queue_ended = await _next_tts_phrase()
+                        phrase, queue_ended = await _next_tts_phrase(opening=spoken_phrases == 0)
                         if not phrase:
                             break
+                        spoken_phrases += 1
                         async for chunk in pipeline.synthesize_speech(phrase, cancel_event, ref_audio_path=ref_audio, ref_text=ref_text):
                             if cancel_event.is_set() or not ws_open:
                                 break
@@ -752,10 +768,12 @@ async def websocket_unified(websocket: WebSocket, client_type: str = Query(defau
                 started = False
                 try:
                     queue_ended = False
+                    spoken_phrases = 0
                     while True:
-                        phrase, queue_ended = await _next_tts_phrase()
+                        phrase, queue_ended = await _next_tts_phrase(opening=spoken_phrases == 0)
                         if not phrase:
                             break
+                        spoken_phrases += 1
                         async for chunk in pipeline.synthesize_speech(phrase, cancel_event, ref_audio_path=ref_audio, ref_text=ref_text):
                             if cancel_event.is_set() or not ws_open:
                                 break
@@ -797,7 +815,7 @@ async def websocket_unified(websocket: WebSocket, client_type: str = Query(defau
         if llm_error:
             logger.error(f"{label} LLM error: {llm_error[0]}")
         if not full_response:
-            return
+            return ""
 
         logger.info(f"{label} LLM response: {full_response}")
         if not for_esp32:
@@ -809,6 +827,7 @@ async def websocket_unified(websocket: WebSocket, client_type: str = Query(defau
             db_service.db_service.log_conversation(role="ai", transcript=full_response, session_id=session_id)
         except Exception:
             pass
+        return full_response
 
     async def _cancel_current_response():
         nonlocal current_tts_task
@@ -915,6 +934,41 @@ async def websocket_unified(websocket: WebSocket, client_type: str = Query(defau
                 with suppress(asyncio.CancelledError, Exception):
                     await t
         return
+
+    # --- Greeting ---
+    # Spoken through the same streaming pipeline as a normal turn. Generating the
+    # whole greeting before synthesizing a single word was the longest silence in
+    # the session -- worst on story mode, whose opening runs to 220 tokens.
+    greeting_sent = False
+    try:
+        g_text, g_max = greeting_prompt(exp_type, thinking=thinking)
+        greeting = await process_transcription_and_respond(
+            g_text, for_esp32=is_esp32, is_greeting=True, max_tokens=g_max,
+        )
+        greeting_sent = bool(greeting)
+        if greeting_sent:
+            logger.info(f"{label} Greeting: {greeting}")
+        else:
+            # Silently swapping in a canned greeting hides real breakage in the
+            # generation path, so say so in the log.
+            logger.warning(
+                f"{label} Model returned an empty greeting "
+                f"(repo={llm_repo}, max_tokens={g_max}); using fallback."
+            )
+            cancel_event.clear()
+            await _emit_ai_turn("Hello!", for_esp32=is_esp32)
+            greeting_sent = True
+    except Exception as e:
+        logger.error(f"{label} Greeting failed: {e}")
+    # The turn pipeline arms cancel_event when it finishes; the session continues
+    # past the greeting, so hand the next turn a clean one.
+    cancel_event.clear()
+
+    # Desktop client starts mic after a readiness event. Keep this fallback for
+    # safety if greeting generation fails.
+    if not is_esp32 and not greeting_sent:
+        with suppress(Exception):
+            await websocket.send_text(json.dumps({"type": "ready_for_input"}))
 
     # --- Normal message loop ---
 

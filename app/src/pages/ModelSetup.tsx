@@ -241,7 +241,7 @@ export const ModelSetupPage = () => {
     <div className="min-h-screen bg-(--color-retro-bg) flex items-center justify-center p-8">
       <div className="max-w-2xl w-full">
         <div className="text-center mb-6">
-          <h1 className="text-2xl font-black tracking-wider">AI Model Setup</h1>
+          <h1 className="font-display text-xl font-bold tracking-wider">AI Model Setup</h1>
         </div>
 
         <div className="retro-card space-y-4">
@@ -308,7 +308,7 @@ export const ModelSetupPage = () => {
                 {requiredModels.map((model) => (
                   <div
                     key={model.id}
-                    className="bg-white border border-gray-200 rounded-2xl p-4 flex items-center gap-4 shadow-sm"
+                    className="bg-white border border-gray-200 rounded-[8px] p-4 flex items-center gap-4 shadow-sm"
                   >
                     <div
                       className={`w-10 h-10 flex items-center justify-center rounded-full ${
@@ -354,14 +354,14 @@ export const ModelSetupPage = () => {
               </div>
 
               {progress && (
-                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-xl flex items-center gap-3">
+                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-[6px] flex items-center gap-3">
                   <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
                   <div className="text-sm text-blue-700 font-mono">{progress}</div>
                 </div>
               )}
 
               {error && (
-                <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2">
+                <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-[6px] flex items-start gap-2">
                   <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
                   <div className="text-sm text-red-700 font-mono break-all">{error}</div>
                 </div>

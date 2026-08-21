@@ -1,7 +1,112 @@
+use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::{Command, Stdio};
 
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter};
+
+/// Streamed to the UI while pip works, so the panel can show what it is doing
+/// instead of a static "this may take a few minutes".
+#[derive(Clone, serde::Serialize)]
+pub struct DepsProgress {
+    pub step: usize,
+    pub steps: usize,
+    pub phase: String,
+    pub package: String,
+    pub downloaded: usize,
+    pub total: Option<usize>,
+}
+
+/// pip names the package on "Collecting x" / "Downloading x-1.2-....whl" lines,
+/// and reveals the full install list once on "Installing collected packages: a, b".
+fn parse_pip_line(line: &str, downloaded: &mut usize, total: &mut Option<usize>) -> Option<(String, String)> {
+    let line = line.trim();
+
+    if let Some(rest) = line.strip_prefix("Collecting ") {
+        *downloaded += 1;
+        let name = rest.split(['=', '<', '>', '!', '~', '[', ' ']).next().unwrap_or(rest);
+        return Some(("downloading".to_string(), name.to_string()));
+    }
+
+    if let Some(rest) = line.strip_prefix("Installing collected packages: ") {
+        *total = Some(rest.split(',').count());
+        return Some(("installing".to_string(), String::new()));
+    }
+
+    if line.starts_with("Successfully installed") {
+        return Some(("done".to_string(), String::new()));
+    }
+
+    None
+}
+
+/// Runs pip with its output streamed line by line, emitting progress as it goes.
+/// `--progress-bar off` keeps pip from emitting carriage-return bars, which would
+/// otherwise never terminate a line for the reader.
+fn run_pip_streaming(
+    app: &AppHandle,
+    pip_path: &str,
+    args: &[String],
+    step: usize,
+    steps: usize,
+    downloaded: &mut usize,
+) -> Result<(), String> {
+    let mut child = Command::new(pip_path)
+        .args(args)
+        .arg("--progress-bar")
+        .arg("off")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Failed to start pip: {e}"))?;
+
+    let mut total: Option<usize> = None;
+    let mut tail: Vec<String> = Vec::new();
+
+    if let Some(stdout) = child.stdout.take() {
+        for line in BufReader::new(stdout).lines().map_while(Result::ok) {
+            if let Some((phase, package)) = parse_pip_line(&line, downloaded, &mut total) {
+                app.emit(
+                    "deps-progress",
+                    DepsProgress {
+                        step,
+                        steps,
+                        phase,
+                        package,
+                        downloaded: *downloaded,
+                        total,
+                    },
+                )
+                .ok();
+            }
+            tail.push(line);
+            if tail.len() > 40 {
+                tail.remove(0);
+            }
+        }
+    }
+
+    let mut stderr_text = String::new();
+    if let Some(stderr) = child.stderr.take() {
+        for line in BufReader::new(stderr).lines().map_while(Result::ok) {
+            stderr_text.push_str(&line);
+            stderr_text.push('\n');
+        }
+    }
+
+    let status = child.wait().map_err(|e| format!("pip failed: {e}"))?;
+    if !status.success() {
+        let detail = if stderr_text.trim().is_empty() {
+            tail.join("\n")
+        } else {
+            stderr_text
+        };
+        // pip's failures are verbose; the tail is where the actual cause lives.
+        let detail: String = detail.lines().rev().take(6).collect::<Vec<_>>().join(" ");
+        return Err(format!("pip install failed: {detail}"));
+    }
+
+    Ok(())
+}
 
 const EMBEDDED_REQUIREMENTS: &str =
     include_str!("../../../resources/python-backend/requirements.lock");
@@ -64,12 +169,16 @@ pub fn pyproject_dependency_names(_app: &AppHandle) -> Result<Vec<String>, Strin
     Ok(out)
 }
 
-pub fn install_python_deps(_app: &AppHandle, pip_path: PathBuf) -> Result<String, String> {
+pub fn install_python_deps(app: &AppHandle, pip_path: PathBuf) -> Result<String, String> {
     if !pip_path.exists() {
         return Err("Virtual environment not found. Please create it first.".to_string());
     }
+    let pip = pip_path
+        .to_str()
+        .ok_or_else(|| "Invalid pip path".to_string())?
+        .to_string();
 
-    let _ = Command::new(pip_path.to_str().unwrap())
+    let _ = Command::new(&pip)
         .arg("install")
         .arg("--upgrade")
         .arg("pip")
@@ -95,46 +204,30 @@ pub fn install_python_deps(_app: &AppHandle, pip_path: PathBuf) -> Result<String
         }
     }
 
+    let steps = if mlx_audio_spec.is_some() { 2 } else { 1 };
+    let mut downloaded = 0usize;
+
     if let Some(spec) = mlx_audio_spec {
-        let output = Command::new(pip_path.to_str().unwrap())
-            .args([
-                "install",
-                "--upgrade",
-                "--force-reinstall",
-                "--no-deps",
-                "--prefer-binary",
-                &spec,
-            ])
-            .output()
-            .map_err(|e| format!("Failed to install mlx-audio: {}", e))?;
-
-        if !output.status.success() {
-            return Err(format!(
-                "Failed to install mlx-audio: {}",
-                String::from_utf8_lossy(&output.stderr)
-            ));
-        }
+        let args: Vec<String> = vec![
+            "install".into(),
+            "--upgrade".into(),
+            "--force-reinstall".into(),
+            "--no-deps".into(),
+            "--prefer-binary".into(),
+            spec,
+        ];
+        run_pip_streaming(app, &pip, &args, 1, steps, &mut downloaded)
+            .map_err(|e| format!("mlx-audio: {e}"))?;
     }
 
-    let mut cmd = Command::new(pip_path.to_str().unwrap());
-    cmd.arg("install")
-        .arg("--upgrade")
-        .arg("--force-reinstall")
-        .arg("--prefer-binary");
-    for dep in rest {
-        cmd.arg(dep);
-    }
-
-    let output = cmd
-        .output()
-        .map_err(|e| format!("Failed to install deps: {}", e))?;
-
-    if !output.status.success() {
-        return Err(format!(
-            "Failed to install dependencies: {}",
-            String::from_utf8_lossy(&output.stderr)
-        ));
-    }
+    let mut args: Vec<String> = vec![
+        "install".into(),
+        "--upgrade".into(),
+        "--force-reinstall".into(),
+        "--prefer-binary".into(),
+    ];
+    args.extend(rest);
+    run_pip_streaming(app, &pip, &args, steps, steps, &mut downloaded)?;
 
     Ok("Dependencies installed successfully".to_string())
 }
